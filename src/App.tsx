@@ -1,0 +1,59 @@
+import { useEffect } from 'react';
+import { AuthProvider, useAuth } from './hooks/useAuth';
+import { AuthForm } from './components/AuthForm';
+import { Header } from './components/Header';
+import { Feed } from './components/Feed';
+import { initDatabase } from './lib/database';
+import { NavigationProvider, useNavigation } from './hooks/useNavigation';
+import { BottomNav } from './components/BottomNav';
+import { Profile } from './components/Profile';
+import { ChatWindow } from './components/ChatWindow';
+import { Footer } from './components/Footer';
+import { RouterProvider } from './hooks/useRouter';
+
+function AppContent() {
+  const { user, isLoading } = useAuth();
+  const { view, showChat, setShowChat } = useNavigation();
+
+  useEffect(() => {
+    initDatabase().catch(console.error);
+  }, []);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
+        <div className="font-mono text-gray-500 dark:text-gray-300">loading...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AuthForm />;
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-16 md:pb-0 flex flex-col">
+      <Header />
+      <div className="flex-1">
+        {view === 'feed' ? <Feed /> : <Profile />}
+      </div>
+      <Footer />
+      <BottomNav />
+      {showChat && <ChatWindow onClose={() => setShowChat(false)} />}
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <RouterProvider>
+        <NavigationProvider>
+          <AppContent />
+        </NavigationProvider>
+      </RouterProvider>
+    </AuthProvider>
+  );
+}
+
+export default App;
