@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { AuthForm } from './components/AuthForm';
 import { Header } from './components/Header';
@@ -10,14 +10,34 @@ import { Profile } from './components/Profile';
 import { ChatWindow } from './components/ChatWindow';
 import { Footer } from './components/Footer';
 import { RouterProvider } from './hooks/useRouter';
+import { OnboardingBackupCodes } from './components/OnboardingBackupCodes';
 
 function AppContent() {
   const { user, isLoading } = useAuth();
   const { view, showChat, setShowChat } = useNavigation();
+  const [onboardingCodes, setOnboardingCodes] = useState<string[] | null>(null);
 
   useEffect(() => {
     initDatabase().catch(console.error);
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    // After login, check if onboarding backup codes exist
+    try {
+      const raw = localStorage.getItem('onboarding_backup_codes');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.every((x) => typeof x === 'string')) {
+          setOnboardingCodes(parsed as string[]);
+        } else {
+          localStorage.removeItem('onboarding_backup_codes');
+        }
+      }
+    } catch {
+      // ignore parse errors
+    }
+  }, [user]);
 
   if (isLoading) {
     return (
@@ -40,6 +60,15 @@ function AppContent() {
       <Footer />
       <BottomNav />
       {showChat && <ChatWindow onClose={() => setShowChat(false)} />}
+      {onboardingCodes && (
+        <OnboardingBackupCodes
+          codes={onboardingCodes}
+          onClose={() => {
+            setOnboardingCodes(null);
+            localStorage.removeItem('onboarding_backup_codes');
+          }}
+        />
+      )}
     </div>
   );
 }

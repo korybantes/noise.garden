@@ -1,7 +1,7 @@
 {
   "name": "vite-react-typescript-starter",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,11 +12,13 @@
   "dependencies": {
     "@ably/chat": "^0.11.0",
     "@neondatabase/serverless": "^1.0.1",
+    "@vercel/blob": "^1.1.1",
     "@vercel/node": "^5.3.13",
     "ably": "^2.11.0",
     "altcha": "^2.1.0",
     "altcha-lib": "^1.3.0",
     "bcryptjs": "^3.0.2",
+    "cloudinary": "^2.7.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "jose": "^5.8.0",

@@ -1,13 +1,21 @@
 import { useNavigate } from 'react-router-dom';
+import { Footer } from '../components/Footer';
 
 export default function Landing() {
   const navigate = useNavigate();
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
-      <div className="max-w-5xl mx-auto p-6">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col">
+      <div className="max-w-5xl mx-auto p-6 w-full">
         <header className="flex items-center justify-between py-4">
-          <div className="font-mono text-lg font-bold text-gray-900 dark:text-gray-100">noise garden</div>
-          <button onClick={() => navigate('/app')} className="font-mono text-sm px-4 py-2 rounded bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900">enter</button>
+          <div className="flex items-center gap-2">
+            <img src="/logo.png" alt="logo" className="w-6 h-6" />
+            <div className="font-mono text-lg font-bold text-gray-900 dark:text-gray-100">noise.garden</div>
+          </div>
+          <div className="flex items-center gap-3">
+            <a href="/privacy" className="font-mono text-sm text-gray-700 dark:text-gray-300">privacy</a>
+            <a href="/terms" className="font-mono text-sm text-gray-700 dark:text-gray-300">terms</a>
+            <button onClick={() => navigate('/app')} className="font-mono text-sm px-4 py-2 rounded bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900">enter</button>
+          </div>
         </header>
         <main className="mt-12 grid md:grid-cols-2 gap-8 items-center">
           <div className="space-y-4">
@@ -34,7 +42,18 @@ export default function Landing() {
             </div>
           ))}
         </section>
+        <section className="mt-12 grid md:grid-cols-2 gap-6">
+          <div className="rounded-lg border border-gray-200 dark:border-gray-800 p-4">
+            <div className="font-mono font-semibold text-gray-900 dark:text-gray-100 mb-2">privacy first</div>
+            <p className="font-mono text-sm text-gray-700 dark:text-gray-300">We minimize what we collect and keep, with GDPR/UK GDPR and US CCPA/CPRA alignment. See our Privacy Policy for details.</p>
+          </div>
+          <div className="rounded-lg border border-gray-200 dark:border-gray-800 p-4">
+            <div className="font-mono font-semibold text-gray-900 dark:text-gray-100 mb-2">open community</div>
+            <p className="font-mono text-sm text-gray-700 dark:text-gray-300">No harassment or illegal content. Moderators can remove posts and suspend accounts.</p>
+          </div>
+        </section>
       </div>
+      <Footer />
     </div>
   );
 } 

@@ -10,6 +10,8 @@ export interface User {
   password_hash: string;
   created_at: Date;
   role: UserRole;
+  avatar_url?: string | null;
+  bio?: string | null;
 }
 
 export interface Post {
@@ -24,6 +26,8 @@ export interface Post {
   repost_of?: string | null;
   role?: UserRole;
   repost_count?: number;
+  image_url?: string | null;
+  avatar_url?: string | null;
 }
 
 export interface Reply {
@@ -48,9 +52,15 @@ export async function initDatabase() {
       username TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       created_at TIMESTAMPTZ DEFAULT NOW(),
-      role TEXT NOT NULL DEFAULT 'user'
+      role TEXT NOT NULL DEFAULT 'user',
+      avatar_url TEXT,
+      bio TEXT
     )
   `;
+
+  // Backfill columns for existing deployments
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT`;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS posts (
@@ -60,49 +70,56 @@ export async function initDatabase() {
       created_at TIMESTAMPTZ DEFAULT NOW(),
       expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '30 days'),
       parent_id UUID REFERENCES posts(id) ON DELETE CASCADE,
-      repost_of UUID REFERENCES posts(id) ON DELETE SET NULL
+      repost_of UUID REFERENCES posts(id) ON DELETE SET NULL,
+      image_url TEXT
     )
   `;
 
   // Clean up expired posts
   await sql`DELETE FROM posts WHERE expires_at < NOW()`;
+  await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS image_url TEXT`;
 }
 
 export async function createUser(username: string, passwordHash: string): Promise<User> {
   const result = await sql`
     INSERT INTO users (username, password_hash)
     VALUES (${username}, ${passwordHash})
-    RETURNING id, username, password_hash, created_at, role
+    RETURNING id, username, password_hash, created_at, role, avatar_url, bio
   `;
   return result[0] as User;
 }
 
 export async function getUserByUsername(username: string): Promise<User | null> {
   const result = await sql`
-    SELECT id, username, password_hash, created_at, role
+    SELECT id, username, password_hash, created_at, role, avatar_url, bio
     FROM users
     WHERE username = ${username}
   `;
   return (result[0] as User) || null;
 }
 
-export async function createPost(userId: string, content: string, parentId?: string, repostOf?: string | null): Promise<Post> {
+export async function updateUserProfile(userId: string, avatarUrl: string | null, bio: string | null): Promise<void> {
+  await sql`UPDATE users SET avatar_url = ${avatarUrl}, bio = ${bio} WHERE id = ${userId}`;
+}
+
+export async function createPost(userId: string, content: string, parentId?: string, repostOf?: string | null, imageUrl?: string | null): Promise<Post> {
   const result = await sql`
-    INSERT INTO posts (user_id, content, parent_id, repost_of)
-    VALUES (${userId}, ${content}, ${parentId || null}, ${repostOf || null})
-    RETURNING id, user_id, content, created_at, expires_at, parent_id, repost_of
+    INSERT INTO posts (user_id, content, parent_id, repost_of, image_url)
+    VALUES (${userId}, ${content}, ${parentId || null}, ${repostOf || null}, ${imageUrl || null})
+    RETURNING id, user_id, content, created_at, expires_at, parent_id, repost_of, image_url
   `;
   
   const post = result[0] as any;
-  const user = await sql`SELECT username, role FROM users WHERE id = ${userId}`;
+  const user = await sql`SELECT username, role, avatar_url FROM users WHERE id = ${userId}`;
   
   return {
     ...post,
     username: user[0].username,
     role: user[0].role as UserRole,
+    avatar_url: user[0].avatar_url,
     reply_count: 0,
     repost_count: 0
-  };
+  } as Post;
 }
 
 export async function getRandomPosts(limit: number = 50): Promise<Post[]> {
@@ -110,10 +127,9 @@ export async function getRandomPosts(limit: number = 50): Promise<Post[]> {
   await sql`DELETE FROM posts WHERE expires_at < NOW()`;
   
   const result = await sql`
-    SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of,
-           u.username, u.role,
-           (SELECT COUNT(*) FROM posts replies WHERE replies.parent_id = p.id) as reply_count,
-           (SELECT COUNT(*) FROM posts rp WHERE rp.repost_of = p.id) as repost_count
+    SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of, p.image_url,
+           u.username, u.role, u.avatar_url,
+           (SELECT COUNT(*) FROM posts replies WHERE replies.parent_id = p.id) as reply_count
     FROM posts p
     JOIN users u ON p.user_id = u.id
     WHERE p.parent_id IS NULL AND p.expires_at > NOW()
@@ -125,10 +141,9 @@ export async function getRandomPosts(limit: number = 50): Promise<Post[]> {
 
 export async function getPostReplies(postId: string): Promise<Post[]> {
   const result = await sql`
-    SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of,
-           u.username, u.role,
-           0 as reply_count,
-           (SELECT COUNT(*) FROM posts rp WHERE rp.repost_of = p.id) as repost_count
+    SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of, p.image_url,
+           u.username, u.role, u.avatar_url,
+           0 as reply_count
     FROM posts p
     JOIN users u ON p.user_id = u.id
     WHERE p.parent_id = ${postId} AND p.expires_at > NOW()
@@ -139,10 +154,9 @@ export async function getPostReplies(postId: string): Promise<Post[]> {
 
 export async function getUserPostsByUsername(username: string): Promise<Post[]> {
   const result = await sql`
-    SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of,
-           u.username, u.role,
-           (SELECT COUNT(*) FROM posts replies WHERE replies.parent_id = p.id) as reply_count,
-           (SELECT COUNT(*) FROM posts rp WHERE rp.repost_of = p.id) as repost_count
+    SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of, p.image_url,
+           u.username, u.role, u.avatar_url,
+           (SELECT COUNT(*) FROM posts replies WHERE replies.parent_id = p.id) as reply_count
     FROM posts p
     JOIN users u ON p.user_id = u.id
     WHERE u.username = ${username} AND p.expires_at > NOW()
@@ -153,8 +167,8 @@ export async function getUserPostsByUsername(username: string): Promise<Post[]> 
 
 export async function getPostById(id: string): Promise<Post | null> {
   const result = await sql`
-    SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of,
-           u.username, u.role,
+    SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of, p.image_url,
+           u.username, u.role, u.avatar_url,
            (SELECT COUNT(*) FROM posts replies WHERE replies.parent_id = p.id) as reply_count,
            (SELECT COUNT(*) FROM posts rp WHERE rp.repost_of = p.id) as repost_count
     FROM posts p
@@ -180,9 +194,10 @@ export async function deletePost(postId: string, requesterId: string): Promise<b
 }
 
 export async function repostPost(userId: string, originalPostId: string): Promise<Post> {
-  const original = await sql`SELECT content FROM posts WHERE id = ${originalPostId}`;
+  const original = await sql`SELECT content, image_url FROM posts WHERE id = ${originalPostId}`;
   const content = original[0]?.content || '';
-  return createPost(userId, content, undefined, originalPostId);
+  const imageUrl = original[0]?.image_url || null;
+  return createPost(userId, content, undefined, originalPostId, imageUrl);
 }
 
 export async function deleteUser(userId: string): Promise<void> {

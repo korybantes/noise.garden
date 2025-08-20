@@ -4,6 +4,7 @@ import { createUser, getUserByUsername } from '../lib/database';
 import { hashPassword, verifyPassword, createToken, storeToken } from '../lib/auth';
 import { useAuth } from '../hooks/useAuth';
 import { generateBackupCode, storeBackupCodes, consumeBackupCode } from '../lib/backup';
+import { OnboardingBackupCodes } from './OnboardingBackupCodes';
 
 export function AuthForm() {
   const [mode, setMode] = useState<'login' | 'signup' | 'backup'>('login');
@@ -19,23 +20,44 @@ export function AuthForm() {
 
   useEffect(() => {
     if (mode !== 'signup') return;
-    // lazy load ALTCHA widget
-    import('altcha').then(() => {
-      const el = document.createElement('altcha-widget');
-      el.setAttribute('challengeurl', '/api/altcha/challenge');
-      el.setAttribute('endpoint', '/api/altcha/verify');
-      el.setAttribute('theme', 'dark');
-      el.id = 'altcha';
-      el.addEventListener('statechange', (ev: any) => {
-        if (ev?.detail?.state === 'verified') {
-          setAltchaPayload(ev.detail.payload || 'ok');
+    const mount = async () => {
+      if (import.meta.env.DEV) {
+        if (altchaRef.current) {
+          altchaRef.current.innerHTML = '';
+          const wrap = document.createElement('div');
+          const label = document.createElement('label');
+          label.className = 'inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 font-mono';
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.addEventListener('change', () => setAltchaPayload(cb.checked ? 'ok' : ''));
+          label.appendChild(cb);
+          label.appendChild(document.createTextNode(" I'm human (dev)"));
+          wrap.appendChild(label);
+          altchaRef.current.appendChild(wrap);
         }
-      });
-      if (altchaRef.current) {
-        altchaRef.current.innerHTML = '';
-        altchaRef.current.appendChild(el);
+      } else {
+        await import('altcha');
+        const el = document.createElement('altcha-widget');
+        el.setAttribute('challengeurl', '/api/altcha/challenge');
+        el.setAttribute('endpoint', '/api/altcha/verify');
+        el.setAttribute('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+        el.style.setProperty('--altcha-border-radius', '6px');
+        el.style.setProperty('--altcha-max-width', '100%');
+        el.style.setProperty('--altcha-color-border', document.documentElement.classList.contains('dark') ? '#374151' : '#d1d5db');
+        el.style.setProperty('--altcha-color-base', document.documentElement.classList.contains('dark') ? '#111827' : '#ffffff');
+        el.id = 'altcha';
+        el.addEventListener('statechange', (ev: any) => {
+          if (ev?.detail?.state === 'verified') {
+            setAltchaPayload(ev.detail.payload || 'ok');
+          }
+        });
+        if (altchaRef.current) {
+          altchaRef.current.innerHTML = '';
+          altchaRef.current.appendChild(el);
+        }
       }
-    });
+    };
+    mount();
   }, [mode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -53,10 +75,10 @@ export function AuthForm() {
         if (password.length < 6) { setError('Password must be 6+ chars'); return; }
         const passwordHash = await hashPassword(password);
         const user = await createUser(username, passwordHash);
-        // Generate 5 backup codes
         const codes = Array.from({ length: 5 }, () => generateBackupCode());
         await storeBackupCodes(user.id, codes);
         setSignupCodes(codes);
+        localStorage.setItem('onboarding_backup_codes', JSON.stringify(codes));
         const token = await createToken(user.id, user.username, user.role || 'user');
         storeToken(token);
         await login(token);
@@ -88,17 +110,17 @@ export function AuthForm() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center p-4">
       <form onSubmit={handleSubmit} className="w-full max-w-md bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow rounded-lg p-6 space-y-4">
+        <div className="text-center">
+          <div className="font-mono text-lg font-bold text-gray-900 dark:text-gray-100">noise.garden</div>
+        </div>
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">{mode === 'login' ? 'Log in' : mode === 'signup' ? 'Sign up' : 'Use backup code'}</h1>
+          <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">{mode === 'login' ? 'Log in' : mode === 'signup' ? 'Sign up' : 'Recover account'}</h1>
           <div className="flex items-center space-x-2">
             <button type="button" className={`inline-flex items-center px-3 py-1.5 rounded text-sm border ${mode === 'login' ? 'bg-gray-900 text-white' : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200'}`} onClick={() => setMode('login')}>
               <LogIn className="w-4 h-4 mr-1" /> Login
             </button>
             <button type="button" className={`inline-flex items-center px-3 py-1.5 rounded text-sm border ${mode === 'signup' ? 'bg-gray-900 text-white' : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200'}`} onClick={() => setMode('signup')}>
               <UserPlus className="w-4 h-4 mr-1" /> Sign Up
-            </button>
-            <button type="button" className={`inline-flex items-center px-3 py-1.5 rounded text-sm border ${mode === 'backup' ? 'bg-gray-900 text-white' : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200'}`} onClick={() => setMode('backup')}>
-              codes
             </button>
           </div>
         </div>
@@ -130,27 +152,31 @@ export function AuthForm() {
         )}
 
         {mode === 'backup' && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Backup code</label>
-            <input value={backupCode} onChange={e => setBackupCode(e.target.value.toUpperCase())} className="mt-1 w-full rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-200" placeholder="XXXX-XXXX-XXXX-XXXX" />
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Backup code</label>
+              <input value={backupCode} onChange={e => setBackupCode(e.target.value.toUpperCase())} className="mt-1 w-full rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-200" placeholder="XXXX-XXXX-XXXX-XXXX" />
+            </div>
+            <div className="font-mono text-xs text-gray-600 dark:text-gray-400">Use your one-time backup code displayed at signup to recover your account.</div>
           </div>
         )}
 
         <button type="submit" disabled={loading || (mode==='signup' && !altchaPayload)} className="w-full inline-flex items-center justify-center px-4 py-2 rounded bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-60">
-          {loading ? 'Please wait…' : (mode === 'login' ? 'Log in' : mode === 'signup' ? 'Create account' : 'Use code')}
+          {loading ? 'Please wait…' : (mode === 'login' ? 'Log in' : mode === 'signup' ? 'Create account' : 'Recover')}
         </button>
 
-        {signupCodes && (
-          <div className="mt-4 rounded border border-gray-200 dark:border-gray-800 p-3">
-            <div className="font-mono text-sm text-gray-700 dark:text-gray-300 mb-2">Save these one-time backup codes:</div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 font-mono text-sm">
-              {signupCodes.map(code => (
-                <div key={code} className="px-2 py-1 rounded bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700">{code}</div>
-              ))}
-            </div>
+        {mode === 'login' && (
+          <div className="text-center">
+            <button type="button" onClick={() => setMode('backup')} className="mt-2 text-xs font-mono text-gray-600 dark:text-gray-400 underline">Recover your account</button>
           </div>
         )}
       </form>
+      {signupCodes && (
+        <OnboardingBackupCodes
+          codes={signupCodes}
+          onClose={() => setSignupCodes(null)}
+        />
+      )}
     </div>
   );
 }
