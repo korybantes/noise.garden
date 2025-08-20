@@ -9,5 +9,15 @@ export default defineConfig({
   },
   define: {
     'process.env': {}
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          router: ['react-router-dom'],
+        }
+      }
+    }
   }
 });

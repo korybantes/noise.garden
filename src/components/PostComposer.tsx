@@ -1,46 +1,59 @@
-import React, { useRef, useState } from 'react';
-import { Send, X, Smile, Image as ImageIcon, Upload } from 'lucide-react';
+import React, { useRef, useState, useEffect } from 'react';
+import { Send, X, Smile } from 'lucide-react';
 import { createPost } from '../lib/database';
 import { useAuth } from '../hooks/useAuth';
+import { Select } from './ui/Select';
+import { containsLink, sanitizeLinks } from '../lib/validation';
 
 interface PostComposerProps {
   onPostCreated: () => void;
   replyTo?: { id: string; username: string; content: string };
   onCancelReply?: () => void;
+	initialContent?: string;
 }
 
-const COMMON_EMOJIS = ['😀','😁','😂','🤣','😊','😍','🤔','😎','🙃','🤯','🥲','🙏','🔥','✨','🤝','👍','👀','💡','💬','💭','🌱'];
+const COMMON_EMOJIS = ['😀','😁','😂','🤣','😊','😍','🤔','😎','🙃','🤯','🥲','🙏','🔥','✨','🤝','👍','👀','💬','💭','🌱'];
+const TTL_PRESETS: { label: string; seconds: number }[] = [
+	{ label: '1h', seconds: 60 * 60 },
+	{ label: '24h', seconds: 60 * 60 * 24 },
+	{ label: '3d', seconds: 60 * 60 * 24 * 3 },
+	{ label: '7d', seconds: 60 * 60 * 24 * 7 },
+	{ label: '30d', seconds: 60 * 60 * 24 * 30 },
+];
 
-export function PostComposer({ onPostCreated, replyTo, onCancelReply }: PostComposerProps) {
-  const [content, setContent] = useState('');
-  const [imageUrl, setImageUrl] = useState<string>('');
+export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialContent = '' }: PostComposerProps) {
+	const [content, setContent] = useState(initialContent);
   const [loading, setLoading] = useState(false);
   const [showEmojis, setShowEmojis] = useState(false);
+	const [ttl, setTtl] = useState<number>(TTL_PRESETS[4].seconds);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const { user } = useAuth();
 
-  const uploadImage = async (file: File) => {
-    const sig = await fetch('/api/cloudinary/sign?folder=posts').then(r => r.json());
-    const form = new FormData();
-    form.append('file', file);
-    form.append('api_key', sig.apiKey);
-    form.append('timestamp', String(sig.timestamp));
-    form.append('signature', sig.signature);
-    form.append('folder', sig.folder);
-    const up = await fetch(`https://api.cloudinary.com/v1_1/${sig.cloudName}/image/upload`, { method: 'POST', body: form });
-    const data = await up.json();
-    if (data?.secure_url) setImageUrl(data.secure_url);
-  };
+	// Auto-fill hashtag when in a room
+	useEffect(() => {
+		if (!initialContent && !replyTo) {
+			try {
+				const url = new URL(window.location.href);
+				const room = url.searchParams.get('room');
+				if (room && !content.includes(room)) {
+					setContent(room + ' ');
+				}
+			} catch {}
+		}
+	}, [initialContent, replyTo]); // Removed 'content' from dependencies to prevent infinite loop
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!content.trim() && !imageUrl) || !user) return;
+		if (!content.trim() || !user) return;
+		if (containsLink(content)) {
+			setContent(sanitizeLinks(content));
+			return;
+		}
 
     setLoading(true);
     try {
-      await createPost(user.userId, content.trim(), replyTo?.id, undefined, imageUrl || null);
+			await createPost(user.userId, content.trim(), replyTo?.id, undefined, null, ttl);
       setContent('');
-      setImageUrl('');
       onPostCreated();
       onCancelReply?.();
     } catch (error) {
@@ -70,7 +83,7 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply }: PostComp
   };
 
   return (
-    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4 mb-6">
+		<div className="ng-card p-4 mb-6">
       {replyTo && (
         <div className="mb-3 pb-3 border-b border-gray-100 dark:border-gray-800">
           <div className="flex items-center justify-between">
@@ -82,16 +95,10 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply }: PostComp
           <div className="mt-1 text-sm text-gray-700 dark:text-gray-300 line-clamp-2">{replyTo.content}</div>
         </div>
       )}
-
+      
       <form onSubmit={handleSubmit}>
-        <textarea ref={textareaRef} value={content} onChange={(e) => setContent(e.target.value)} placeholder={replyTo ? "write your reply..." : "share a random thought..."} className="w-full p-3 bg-transparent border-0 resize-none focus:outline-none font-mono text-sm placeholder-gray-400 dark:placeholder-gray-500 text-gray-900 dark:text-gray-100" rows={3} maxLength={280} />
-
-        {imageUrl && (
-          <div className="mt-2">
-            <img src={imageUrl.replace('/upload/', '/upload/f_auto,q_auto,w_800,c_limit/')} alt="attachment" className="rounded border border-gray-200 dark:border-gray-800" />
-          </div>
-        )}
-
+				<textarea ref={textareaRef} value={content} onChange={(e) => setContent(e.target.value)} placeholder={replyTo ? "write your reply..." : "share a random thought... use #hashtags to create rooms"} className="w-full p-3 bg-transparent border-0 resize-none focus:outline-none font-mono text-sm placeholder-gray-400 dark:placeholder-gray-500 text-gray-900 dark:text-gray-100" rows={3} maxLength={280} />
+        
         <div className="flex items-center justify-between mt-3 relative">
           <div className="flex items-center gap-3">
             <div className="text-xs font-mono text-gray-400 dark:text-gray-500">{content.length}/280</div>
@@ -109,13 +116,14 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply }: PostComp
                 </div>
               )}
             </div>
-            <label className="inline-flex items-center gap-1 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors cursor-pointer">
-              <Upload size={16} /> image
-              <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(f); }} />
-            </label>
+					</div>
+					
+					<div className="flex items-center gap-3">
+						<label className="font-mono text-xs text-gray-500 dark:text-gray-400">expires in</label>
+						<Select value={ttl} options={TTL_PRESETS.map(p => ({ value: p.seconds, label: p.label }))} onChange={(v) => setTtl(Number(v))} ariaLabel="expires in" />
           </div>
-
-          <button type="submit" disabled={(!content.trim() && !imageUrl) || loading} className="flex items-center gap-2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 px-4 py-2 rounded-md font-mono text-sm hover:bg-gray-800 dark:hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+          
+					<button type="submit" disabled={!content.trim() || loading} className="mt-3 ng-btn">
             <Send size={16} />
             {replyTo ? 'reply' : 'post'}
           </button>

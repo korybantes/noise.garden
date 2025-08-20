@@ -14,7 +14,7 @@ import { OnboardingBackupCodes } from './components/OnboardingBackupCodes';
 
 function AppContent() {
   const { user, isLoading } = useAuth();
-  const { view, showChat, setShowChat } = useNavigation();
+  const { view } = useNavigation();
   const [onboardingCodes, setOnboardingCodes] = useState<string[] | null>(null);
 
   useEffect(() => {
@@ -55,11 +55,10 @@ function AppContent() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-16 md:pb-0 flex flex-col">
       <Header />
       <div className="flex-1">
-        {view === 'feed' ? <Feed /> : <Profile />}
+        {view === 'feed' ? <Feed /> : view === 'profile' ? <Profile /> : <ChatWindow onClose={() => {}} />}
       </div>
       <Footer />
       <BottomNav />
-      {showChat && <ChatWindow onClose={() => setShowChat(false)} />}
       {onboardingCodes && (
         <OnboardingBackupCodes
           codes={onboardingCodes}

@@ -2,6 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import { X, Send, Users, Shuffle } from 'lucide-react';
 import * as Ably from 'ably';
 import { ChatClient, ChatMessageEvent, RoomStatusChange, TypingSetEvent } from '@ably/chat';
+import { useNavigation } from '../hooks/useNavigation';
+
+let ablySingleton: Ably.Realtime | null = null;
+let chatSingleton: ChatClient | null = null;
 
 interface ChatWindowProps {
   onClose: () => void;
@@ -15,13 +19,14 @@ interface ChatMessage {
 }
 
 export function ChatWindow({ onClose }: ChatWindowProps) {
+  const { setView, setChatActive, chatActive } = useNavigation();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
-  const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
+  const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>(chatActive ? 'connected' : 'disconnected');
   const [onlineCount, setOnlineCount] = useState<number>(0);
   const [roomId, setRoomId] = useState<string | null>(null);
-  const [ablyClient, setAblyClient] = useState<Ably.Realtime | null>(null);
-  const [chatClient, setChatClient] = useState<ChatClient | null>(null);
+  const [ablyClient, setAblyClient] = useState<Ably.Realtime | null>(ablySingleton);
+  const [chatClient, setChatClient] = useState<ChatClient | null>(chatSingleton);
   const [lobbyRoom, setLobbyRoom] = useState<any>(null);
   const [peerRoom, setPeerRoom] = useState<any>(null);
   const [typingText, setTypingText] = useState<string | null>(null);
@@ -74,16 +79,22 @@ export function ChatWindow({ onClose }: ChatWindowProps) {
 
   // Initialize Ably once
   useEffect(() => {
+    if (ablySingleton && chatSingleton) {
+      setAblyClient(ablySingleton);
+      setChatClient(chatSingleton);
+      return;
+    }
     const key = import.meta.env.VITE_ABLY_KEY;
     if (!key) return;
     const client = new Ably.Realtime({ key, clientId: `user-${Math.random().toString(36).slice(2)}` });
     const chat = new ChatClient(client);
+    ablySingleton = client;
+    chatSingleton = chat;
     setAblyClient(client);
     setChatClient(chat);
 
-    return () => {
-      client.close();
-    };
+    // Do not close on unmount to keep connection alive; explicit disconnect handles cleanup
+    return () => {};
   }, []);
 
   // Presence count in lobby
@@ -168,6 +179,7 @@ export function ChatWindow({ onClose }: ChatWindowProps) {
           setPeerRoom(null);
           setRoomId(null);
           setTypingText(null);
+          setChatActive(false);
           addMessage('Your pair disconnected.', 'you');
         }
       });
@@ -175,6 +187,7 @@ export function ChatWindow({ onClose }: ChatWindowProps) {
       await room.attach();
       try { await room.presence.enter(); } catch {}
       setConnectionStatus('connected');
+      setChatActive(true);
       addMessage('Connected to anonymous peer. Messages are not stored.', 'you');
 
       return () => {
@@ -189,7 +202,7 @@ export function ChatWindow({ onClose }: ChatWindowProps) {
     }
   };
 
-  // Very simple matchmaking: first user publishes an offer with a generated room name; next user consumes it and both join the same room
+  // Very simple matchmaking
   const findRandomPeer = async () => {
     if (!chatClient || !lobbyRoom) return;
     if (onlineCount <= 1) {
@@ -201,7 +214,7 @@ export function ChatWindow({ onClose }: ChatWindowProps) {
     setConnectionStatus('connecting');
     setMessages([]);
     addMessage('Looking for anonymous peer...', 'you');
-
+    
     const candidateRoom = `pair-${Math.random().toString(36).slice(2)}`;
 
     // Try to claim a pending invite
@@ -268,6 +281,7 @@ export function ChatWindow({ onClose }: ChatWindowProps) {
     setPeerRoom(null);
     setRoomId(null);
     setTypingText(null);
+    setChatActive(false);
     addMessage('Disconnected.', 'you');
   };
 
@@ -283,141 +297,135 @@ export function ChatWindow({ onClose }: ChatWindowProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg w-full max-w-lg md:max-w-xl lg:max-w-2xl h-[28rem] md:h-[32rem] flex flex-col">
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800">
+    <div className="min-h-[calc(100vh-56px)] bg-gray-50 dark:bg-gray-950">
+      <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
+        <div className="max-w-2xl mx-auto flex items-center justify-between p-4">
           <div className="flex items-center gap-2">
             <Users size={18} className="text-gray-600 dark:text-gray-300" />
             <h2 className="font-mono font-bold text-gray-900 dark:text-gray-100">anonymous chat</h2>
           </div>
           <button
-            onClick={onClose}
+            onClick={() => { disconnect(); setView('feed'); }}
             className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
           >
             <X size={20} />
           </button>
         </div>
+      </div>
 
-        <div className="px-4 py-2 text-xs font-mono text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
-          <span>online: {onlineCount}</span>
+      <div className="max-w-2xl mx-auto p-4 text-xs font-mono text-gray-600 dark:text-gray-300 flex items-center justify-between">
+        <span>online: {onlineCount}</span>
+        <span className={connectionStatus === 'connected' ? 'text-green-600' : connectionStatus === 'connecting' ? 'text-amber-600' : 'text-gray-500'}>
+          {connectionStatus}
+        </span>
+      </div>
+
+      {typingText && (
+        <div className="max-w-2xl mx-auto px-4 py-1 text-xs font-mono text-gray-500 dark:text-gray-400">{typingText}</div>
+      )}
+
+      <div className="max-w-2xl mx-auto flex-1 overflow-y-auto p-4 space-y-2 relative">
+        <div className="pointer-events-none absolute inset-0">
+          {reactionBubbles.map(b => (
+            <div key={b.id} className="absolute animate-bounce text-2xl" style={{ left: `${b.x}%`, top: `${b.y}%` }}>
+              {b.emoji}
+            </div>
+          ))}
         </div>
 
-        {typingText && (
-          <div className="px-4 py-1 text-xs font-mono text-gray-500 dark:text-gray-400">{typingText}</div>
-        )}
-
-        <div className="flex-1 overflow-y-auto p-4 space-y-2 relative">
-          {/* reaction bubbles overlay */}
-          <div className="pointer-events-none absolute inset-0">
-            {reactionBubbles.map(b => (
-              <div key={b.id} className="absolute animate-bounce text-2xl" style={{ left: `${b.x}%`, top: `${b.y}%` }}>
-                {b.emoji}
-              </div>
-            ))}
+        {messages.length === 0 ? (
+          <div className="text-center text-gray-500 dark:text-gray-400 font-mono text-sm mt-8">
+            <p>no messages yet</p>
+            <p className="text-xs mt-1">find a peer to start chatting</p>
           </div>
-
-          {messages.length === 0 ? (
-            <div className="text-center text-gray-500 dark:text-gray-400 font-mono text-sm mt-8">
-              <p>no messages yet</p>
-              <p className="text-xs mt-1">find a peer to start chatting</p>
+        ) : (
+          messages.map((message) => (
+            <div
+              key={message.id}
+              className={`text-sm font-mono ${
+                message.sender === 'you' 
+                  ? 'text-gray-600 dark:text-gray-300 text-right' 
+                  : 'text-gray-800 dark:text-gray-100'
+              }`}
+            >
+              <span className={`inline-block p-2 rounded-lg max-w-xs ${
+                message.sender === 'you'
+                  ? 'bg-gray-100 dark:bg-gray-800'
+                  : 'bg-blue-50 dark:bg-blue-900/30'
+              }`}>
+                {message.text}
+              </span>
             </div>
-          ) : (
-            messages.map((message) => (
-              <div
-                key={message.id}
-                className={`text-sm font-mono ${
-                  message.sender === 'you' 
-                    ? 'text-gray-600 dark:text-gray-300 text-right' 
-                    : 'text-gray-800 dark:text-gray-100'
-                }`}
-              >
-                <span className={`inline-block p-2 rounded-lg max-w-xs ${
-                  message.sender === 'you'
-                    ? 'bg-gray-100 dark:bg-gray-800'
-                    : 'bg-blue-50 dark:bg-blue-900/30'
-                }`}>
-                  {message.text}
-                </span>
-              </div>
-            ))
-          )}
-          <div ref={messagesEndRef} />
-        </div>
+          ))
+        )}
+        <div ref={messagesEndRef} />
+      </div>
 
-        <div className="border-t border-gray-200 dark:border-gray-800 p-4">
-          {connectionStatus === 'disconnected' ? (
-            <>
-              <button
-                onClick={findRandomPeer}
-                className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white py-2 px-4 rounded-md font-mono text-sm hover:bg-gray-800 transition-colors"
-              >
-                <Shuffle size={16} />
-                find random peer
-              </button>
-              {onlineCount <= 1 && (
-                <div className="mt-2 text-center text-xs font-mono text-gray-500 dark:text-gray-400">
-                  nobody else is online right now
-                </div>
-              )}
-              <div className="mt-3 text-center">
-                <button onClick={onClose} className="text-xs font-mono text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">close chat</button>
+      <div className="border-t border-gray-200 dark:border-gray-800 p-4 max-w-2xl mx-auto">
+        {connectionStatus === 'disconnected' ? (
+          <>
+            <button
+              onClick={findRandomPeer}
+              className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white py-2 px-4 rounded-md font-mono text-sm hover:bg-gray-800 transition-colors"
+            >
+              <Shuffle size={16} />
+              find random peer
+            </button>
+          </>
+        ) : connectionStatus === 'connecting' ? (
+          <div className="text-center font-mono text-sm text-gray-500 dark:text-gray-400">
+            connecting...
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-green-600 font-mono text-xs">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                connected anonymously {roomId ? `(${roomId})` : ''}
               </div>
-            </>
-          ) : connectionStatus === 'connecting' ? (
-            <div className="text-center font-mono text-sm text-gray-500 dark:text-gray-400">
-              connecting...
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-green-600 font-mono text-xs">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  connected anonymously {roomId ? `(${roomId})` : ''}
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={findNewPair}
-                    className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 font-mono text-xs transition-colors"
-                  >
-                    find new pair
-                  </button>
-                  <button
-                    onClick={disconnect}
-                    className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 font-mono text-xs transition-colors"
-                  >
-                    disconnect
-                  </button>
-                </div>
-              </div>
-
               <div className="flex items-center gap-2">
-                <button onClick={() => sendReaction('like')} className="text-sm" title="like">👍</button>
-                <button onClick={() => sendReaction('heart')} className="text-sm" title="heart">❤️</button>
-                <button onClick={() => sendReaction('joy')} className="text-sm" title="joy">😂</button>
-                <button onClick={() => sendReaction('fire')} className="text-sm" title="fire">🔥</button>
-              </div>
-
-              <form onSubmit={sendMessage} className="flex gap-2">
-                <input
-                  type="text"
-                  value={inputText}
-                  onChange={(e) => onInputChange(e.target.value)}
-                  onBlur={() => { if (peerRoom) { try { peerRoom.typing.stop(); } catch {} } }}
-                  placeholder="type anonymously..."
-                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
-                  maxLength={200}
-                />
                 <button
-                  type="submit"
-                  disabled={!inputText.trim()}
-                  className="bg-gray-900 text-white p-2 rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  onClick={findNewPair}
+                  className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 font-mono text-xs transition-colors"
                 >
-                  <Send size={16} />
+                  find new pair
                 </button>
-              </form>
+                <button
+                  onClick={disconnect}
+                  className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 font-mono text-xs transition-colors"
+                >
+                  disconnect
+                </button>
+              </div>
             </div>
-          )}
-        </div>
+
+            <div className="flex items-center gap-2">
+              <button onClick={() => sendReaction('like')} className="text-sm" title="like">👍</button>
+              <button onClick={() => sendReaction('heart')} className="text-sm" title="heart">❤️</button>
+              <button onClick={() => sendReaction('joy')} className="text-sm" title="joy">😂</button>
+              <button onClick={() => sendReaction('fire')} className="text-sm" title="fire">🔥</button>
+            </div>
+            
+            <form onSubmit={sendMessage} className="flex gap-2">
+              <input
+                type="text"
+                value={inputText}
+                onChange={(e) => onInputChange(e.target.value)}
+                onBlur={() => { if (peerRoom) { try { peerRoom.typing.stop(); } catch {} } }}
+                placeholder="type anonymously..."
+                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                maxLength={200}
+              />
+              <button
+                type="submit"
+                disabled={!inputText.trim()}
+                className="bg-gray-900 text-white p-2 rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <Send size={16} />
+              </button>
+            </form>
+          </div>
+        )}
       </div>
     </div>
   );

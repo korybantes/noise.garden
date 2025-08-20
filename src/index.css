@@ -1,3 +1,59 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+	--ng-bg: #ffffff;
+	--ng-fg: #111827;
+	--ng-muted: #6b7280;
+	--ng-border: #e5e7eb;
+	--ng-accent: #111827;
+	--ng-accent-fg: #ffffff;
+	--ng-radius: 8px;
+	--ng-ring: 0 0 0 2px rgba(17,24,39,0.2);
+}
+
+.dark {
+	--ng-bg: #0b1220;
+	--ng-fg: #f3f4f6;
+	--ng-muted: #9ca3af;
+	--ng-border: #1f2937;
+	--ng-accent: #f3f4f6;
+	--ng-accent-fg: #0b1220;
+	--ng-radius: 8px;
+	--ng-ring: 0 0 0 2px rgba(243,244,246,0.15);
+}
+
+.ng-card {
+	@apply border rounded-lg;
+	background: var(--ng-bg);
+	border-color: var(--ng-border);
+	color: var(--ng-fg);
+	border-radius: var(--ng-radius);
+}
+
+.ng-btn {
+	@apply inline-flex items-center justify-center font-mono text-sm transition-colors select-none;
+	border-radius: var(--ng-radius);
+	background: var(--ng-accent);
+	color: var(--ng-accent-fg);
+	padding: 0.5rem 0.75rem;
+}
+.ng-btn:disabled { @apply opacity-50 cursor-not-allowed; }
+.ng-btn.secondary {
+	background: transparent;
+	color: var(--ng-fg);
+	border: 1px solid var(--ng-border);
+}
+
+.ng-input, .ng-select {
+	@apply font-mono text-sm w-full;
+	border: 1px solid var(--ng-border);
+	background: transparent;
+	color: var(--ng-fg);
+	border-radius: var(--ng-radius);
+	padding: 0.5rem 0.75rem;
+}
+
+.ng-modal-backdrop { @apply fixed inset-0 flex items-center justify-center p-4; background: rgba(0,0,0,.5); }
+.ng-modal { @apply border rounded-lg w-full max-w-md; background: var(--ng-bg); border-color: var(--ng-border); color: var(--ng-fg); }

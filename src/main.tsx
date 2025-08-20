@@ -7,6 +7,10 @@ import Landing from './pages/Landing.tsx';
 import Privacy from './pages/Privacy.tsx';
 import Terms from './pages/Terms.tsx';
 import Cookies from './pages/Cookies.tsx';
+import Invite from './pages/Invite.tsx';
+import Docs from './pages/Docs.tsx';
+import { AuthProvider } from './hooks/useAuth';
+import { NavigationProvider } from './hooks/useNavigation';
 
 function ConsentBanner() {
   const accepted = typeof localStorage !== 'undefined' && localStorage.getItem('consent_banner') === '1';
@@ -26,15 +30,19 @@ function ConsentBanner() {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
+    <AuthProvider>
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms" element={<Terms />} />
         <Route path="/cookies" element={<Cookies />} />
+          <Route path="/invite" element={<Invite />} />
+          <Route path="/docs" element={<Docs />} />
         <Route path="/app" element={<><App /><ConsentBanner /></>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
+    </AuthProvider>
   </StrictMode>
 );

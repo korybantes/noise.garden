@@ -1,15 +1,74 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { LogIn, UserPlus, AlertTriangle } from 'lucide-react';
-import { createUser, getUserByUsername } from '../lib/database';
+import { LogIn, UserPlus, AlertTriangle, Ban } from 'lucide-react';
+import { createUser, getUserByUsername, updateUserProfile, getInviteByCode, markInviteUsed, isUserBanned } from '../lib/database';
 import { hashPassword, verifyPassword, createToken, storeToken } from '../lib/auth';
 import { useAuth } from '../hooks/useAuth';
 import { generateBackupCode, storeBackupCodes, consumeBackupCode } from '../lib/backup';
 import { OnboardingBackupCodes } from './OnboardingBackupCodes';
 
+function generateRandomAvatarDataUrl(seed: string): string {
+	const canvas = document.createElement('canvas');
+	const size = 128;
+	canvas.width = size;
+	canvas.height = size;
+	const ctx = canvas.getContext('2d')!;
+
+	// Helper PRNG from seed
+	function hash(s: string) { let h = 0; for (let i = 0; i < s.length; i++) h = ((h << 5) - h) + s.charCodeAt(i) | 0; return Math.abs(h); }
+	const base = hash(seed);
+	function rnd(n: number, m: number) { return (hash(seed + ':' + n) % 1000) / 1000 * (m - 0) + 0; }
+
+	// Gradient background
+	const h1 = (base % 360);
+	const h2 = (base * 3 % 360);
+	const grad = ctx.createLinearGradient(0, 0, size, size);
+	grad.addColorStop(0, `hsl(${h1} 70% 55%)`);
+	grad.addColorStop(1, `hsl(${h2} 70% 45%)`);
+	ctx.fillStyle = grad;
+	ctx.fillRect(0, 0, size, size);
+
+	// Soft translucent blobs
+	for (let i = 0; i < 4; i++) {
+		const cx = 16 + rnd(i, 1) * (size - 32);
+		const cy = 16 + rnd(i + 1, 1) * (size - 32);
+		const r = 18 + rnd(i + 2, 1) * 28;
+		const hue = (h1 + i * 40) % 360;
+		const g = ctx.createRadialGradient(cx, cy, 4, cx, cy, r);
+		g.addColorStop(0, `hsla(${hue} 80% 90% / 0.6)`);
+		g.addColorStop(1, `hsla(${hue} 80% 70% / 0)`);
+		ctx.fillStyle = g;
+		ctx.beginPath();
+		ctx.arc(cx, cy, r, 0, Math.PI * 2);
+		ctx.fill();
+	}
+
+	// Rounded mask (circle)
+	const mask = document.createElement('canvas');
+	mask.width = size; mask.height = size;
+	const mctx = mask.getContext('2d')!;
+	mctx.fillStyle = '#fff';
+	mctx.beginPath();
+	mctx.arc(size/2, size/2, size/2, 0, Math.PI * 2);
+	mctx.fill();
+
+	// Apply mask
+	const out = document.createElement('canvas');
+	out.width = size; out.height = size;
+	const octx = out.getContext('2d')!;
+	octx.save();
+	octx.drawImage(mask, 0, 0);
+	octx.globalCompositeOperation = 'source-in';
+	octx.drawImage(canvas, 0, 0);
+	octx.restore();
+
+	return out.toDataURL('image/png');
+}
+
 export function AuthForm() {
   const [mode, setMode] = useState<'login' | 'signup' | 'backup'>('login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [invite, setInvite] = useState('');
   const [backupCode, setBackupCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -17,6 +76,19 @@ export function AuthForm() {
   const [altchaPayload, setAltchaPayload] = useState<string>('');
   const altchaRef = useRef<HTMLDivElement | null>(null);
   const { login } = useAuth();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const inv = params.get('invite');
+    if (inv) {
+      setMode('signup');
+      setInvite(inv.toUpperCase());
+      // clean the URL without reload
+      params.delete('invite');
+      const url = window.location.pathname + (params.toString() ? `?${params.toString()}` : '');
+      window.history.replaceState({}, '', url);
+    }
+  }, []);
 
   useEffect(() => {
     if (mode !== 'signup') return;
@@ -73,8 +145,16 @@ export function AuthForm() {
         const existingUser = await getUserByUsername(username);
         if (existingUser) { setError('Username already exists'); return; }
         if (password.length < 6) { setError('Password must be 6+ chars'); return; }
+        if (!invite.trim()) { setError('Invite code required'); return; }
+        const inv = await getInviteByCode(invite.trim().toUpperCase());
+        if (!inv || inv.used_by) { setError('Invalid or used invite code'); return; }
+
         const passwordHash = await hashPassword(password);
         const user = await createUser(username, passwordHash);
+        const marked = await markInviteUsed(invite.trim().toUpperCase(), user.id);
+        if (!marked) { setError('Invite could not be used'); return; }
+        const avatarDataUrl = generateRandomAvatarDataUrl(username);
+        await updateUserProfile(user.id, avatarDataUrl, null);
         const codes = Array.from({ length: 5 }, () => generateBackupCode());
         await storeBackupCodes(user.id, codes);
         setSignupCodes(codes);
@@ -84,7 +164,16 @@ export function AuthForm() {
         await login(token);
       } else if (mode === 'login') {
         const user = await getUserByUsername(username);
-        if (!user || !(await verifyPassword(password, user.password_hash))) {
+        if (!user) { setError('User not found'); return; }
+        
+        // Check if user is banned
+        const banInfo = await isUserBanned(user.id);
+        if (banInfo.banned) {
+          setError(`Your account has been banned by @${banInfo.bannedBy}: ${banInfo.reason}`);
+          return;
+        }
+        
+        if (!(await verifyPassword(password, user.password_hash))) {
           setError('Invalid username or password');
           return;
         }
@@ -94,6 +183,14 @@ export function AuthForm() {
       } else if (mode === 'backup') {
         const user = await getUserByUsername(username);
         if (!user) { setError('User not found'); return; }
+        
+        // Check if user is banned
+        const banInfo = await isUserBanned(user.id);
+        if (banInfo.banned) {
+          setError(`Your account has been banned by @${banInfo.bannedBy}: ${banInfo.reason}`);
+          return;
+        }
+        
         const ok = await consumeBackupCode(user.id, backupCode.trim().toUpperCase());
         if (!ok) { setError('Invalid or used backup code'); return; }
         const token = await createToken(user.id, user.username, user.role || 'user');
@@ -123,14 +220,14 @@ export function AuthForm() {
               <UserPlus className="w-4 h-4 mr-1" /> Sign Up
             </button>
           </div>
-        </div>
+            </div>
 
-        {error && (
+            {error && (
           <div className="flex items-center text-sm text-red-700 bg-red-50 dark:bg-red-950/50 dark:text-red-300 border border-red-200 dark:border-red-900 rounded p-2">
             <AlertTriangle className="w-4 h-4 mr-2" />
-            {error}
-          </div>
-        )}
+                {error}
+              </div>
+            )}
 
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Username</label>
@@ -144,11 +241,17 @@ export function AuthForm() {
           </div>
         )}
 
-        {mode === 'signup' && (
+            {mode === 'signup' && (
+          <>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Invite code</label>
+              <input value={invite} onChange={e => setInvite(e.target.value.toUpperCase())} className="mt-1 w-full rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-200" placeholder="XXXX-XXXX-XXXX" />
+            </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Captcha</label>
             <div ref={altchaRef} />
           </div>
+          </>
         )}
 
         {mode === 'backup' && (
@@ -156,14 +259,14 @@ export function AuthForm() {
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Backup code</label>
               <input value={backupCode} onChange={e => setBackupCode(e.target.value.toUpperCase())} className="mt-1 w-full rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-200" placeholder="XXXX-XXXX-XXXX-XXXX" />
-            </div>
+                </div>
             <div className="font-mono text-xs text-gray-600 dark:text-gray-400">Use your one-time backup code displayed at signup to recover your account.</div>
-          </div>
-        )}
+              </div>
+            )}
 
         <button type="submit" disabled={loading || (mode==='signup' && !altchaPayload)} className="w-full inline-flex items-center justify-center px-4 py-2 rounded bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-60">
           {loading ? 'Please wait…' : (mode === 'login' ? 'Log in' : mode === 'signup' ? 'Create account' : 'Recover')}
-        </button>
+            </button>
 
         {mode === 'login' && (
           <div className="text-center">
