@@ -2,6 +2,90 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Custom slider styles */
+.slider::-webkit-slider-thumb {
+  appearance: none;
+  height: 20px;
+  width: 20px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+
+.slider::-moz-range-thumb {
+  height: 20px;
+  width: 20px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+
+/* Instagram-style animations */
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.gradient-animate {
+  background-size: 200% 200%;
+  animation: gradient-shift 3s ease infinite;
+}
+
+/* Enhanced shadows for Instagram posts */
+.instagram-shadow {
+  box-shadow: 
+    0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 10px 10px -5px rgba(0, 0, 0, 0.04),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+/* Instagram Story aspect ratio */
+.instagram-story {
+  aspect-ratio: 9/16;
+  /* Fallback for older browsers */
+  width: 100%;
+  height: auto;
+}
+
+/* Ensure proper 9:16 ratio on all devices */
+@media (max-width: 640px) {
+  .instagram-story {
+    width: 192px; /* 48 * 4 */
+    height: 340px; /* 192 * 16/9 */
+    max-width: 100%;
+    max-height: none;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
+  .instagram-story {
+    width: 256px; /* 64 * 4 */
+    height: 455px; /* 256 * 16/9 */
+  }
+}
+
+@media (min-width: 1025px) {
+  .instagram-story {
+    width: 384px;
+    height: 683px; /* 384 * 16/9 */
+  }
+}
+
+/* Remove scrollbars completely */
+.overflow-y-auto {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.overflow-y-auto::-webkit-scrollbar {
+  display: none;
+}
+
 :root {
 	--ng-bg: #ffffff;
 	--ng-fg: #111827;
@@ -57,3 +141,12 @@
 
 .ng-modal-backdrop { @apply fixed inset-0 flex items-center justify-center p-4; background: rgba(0,0,0,.5); }
 .ng-modal { @apply border rounded-lg w-full max-w-md; background: var(--ng-bg); border-color: var(--ng-border); color: var(--ng-fg); }
+
+/* Mobile touch improvements */
+@media (max-width: 640px) {
+  .instagram-shadow {
+    box-shadow: 
+      0 10px 15px -3px rgba(0, 0, 0, 0.1),
+      0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  }
+}

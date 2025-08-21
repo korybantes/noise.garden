@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { AuthForm } from './components/AuthForm';
 import { Header } from './components/Header';

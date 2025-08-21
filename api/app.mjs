@@ -3,7 +3,13 @@ import { jwtVerify } from 'jose';
 
 export const config = { runtime: 'nodejs' };
 
-const sql = neon(process.env.NEON_DB);
+// Handle different environment variable names for Vercel
+const dbUrl = process.env.NEON_DB || process.env.VITE_NEON_DB || process.env.DATABASE_URL;
+if (!dbUrl) {
+  throw new Error('No database connection string provided. Please set NEON_DB, VITE_NEON_DB, or DATABASE_URL environment variable.');
+}
+
+const sql = neon(dbUrl);
 const secretKey = new TextEncoder().encode(process.env.JWT_SECRET || process.env.VITE_JWT_SECRET || 'anonymous_social_secret_key_change_in_production');
 
 async function getAuthUser(req) {
@@ -30,15 +36,20 @@ export default async function handler(req, res) {
     switch (action) {
       case 'initDatabase': {
         await sql`CREATE EXTENSION IF NOT EXISTS pgcrypto;`;
-        await sql`CREATE TABLE IF NOT EXISTS users (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW(), role TEXT NOT NULL DEFAULT 'user', avatar_url TEXT, bio TEXT)`;
+        await sql`CREATE TABLE IF NOT EXISTS users (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW(), role TEXT NOT NULL DEFAULT 'user', avatar_url TEXT, bio TEXT, webauthn_credential_id TEXT, webauthn_public_key TEXT, webauthn_sign_count INTEGER DEFAULT 0)`;
         await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT`;
         await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT`;
-        await sql`CREATE TABLE IF NOT EXISTS posts (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id UUID REFERENCES users(id) ON DELETE CASCADE, content TEXT NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW(), expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '30 days'), parent_id UUID REFERENCES posts(id) ON DELETE CASCADE, repost_of UUID REFERENCES posts(id) ON DELETE SET NULL, image_url TEXT)`;
+        await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS webauthn_credential_id TEXT`;
+        await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS webauthn_public_key TEXT`;
+        await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS webauthn_sign_count INTEGER DEFAULT 0`;
+        await sql`CREATE TABLE IF NOT EXISTS posts (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id UUID REFERENCES users(id) ON DELETE CASCADE, content TEXT NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW(), expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '30 days'), parent_id UUID REFERENCES posts(id) ON DELETE CASCADE, repost_of UUID REFERENCES posts(id) ON DELETE SET NULL, image_url TEXT, is_whisper BOOLEAN DEFAULT FALSE)`;
         await sql`CREATE TABLE IF NOT EXISTS invites (code TEXT PRIMARY KEY, created_by UUID REFERENCES users(id) ON DELETE CASCADE, created_at TIMESTAMPTZ DEFAULT NOW(), used_by UUID REFERENCES users(id) ON DELETE SET NULL, used_at TIMESTAMPTZ)`;
         await sql`CREATE TABLE IF NOT EXISTS notifications (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id UUID REFERENCES users(id) ON DELETE CASCADE, type TEXT NOT NULL, post_id UUID REFERENCES posts(id) ON DELETE CASCADE, from_user_id UUID REFERENCES users(id) ON DELETE CASCADE, from_username TEXT NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW(), read BOOLEAN DEFAULT FALSE)`;
         await sql`DELETE FROM posts WHERE expires_at < NOW()`;
         await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS image_url TEXT`;
+        await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS is_whisper BOOLEAN DEFAULT FALSE`;
         await sql`CREATE TABLE IF NOT EXISTS banned_users (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id UUID REFERENCES users(id) ON DELETE CASCADE, banned_by UUID REFERENCES users(id) ON DELETE SET NULL, reason TEXT NOT NULL, banned_at TIMESTAMPTZ DEFAULT NOW(), UNIQUE(user_id))`;
+        await sql`CREATE TABLE IF NOT EXISTS reply_keys (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), key_hash TEXT NOT NULL, post_id UUID REFERENCES posts(id) ON DELETE CASCADE, creator_id UUID REFERENCES users(id) ON DELETE CASCADE, recipient_id UUID REFERENCES users(id) ON DELETE CASCADE, expires_at TIMESTAMPTZ NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`;
         return res.status(200).json({ ok: true });
       }
 
@@ -54,9 +65,21 @@ export default async function handler(req, res) {
       }
       case 'updateUserProfile': {
         if (!me) return res.status(401).json({ error: 'unauthorized' });
-        const { userId, avatarUrl, bio } = args;
-        if (me.userId !== userId && me.role !== 'admin' && me.role !== 'moderator') return res.status(403).json({ error: 'forbidden' });
-        await sql`UPDATE users SET avatar_url = ${avatarUrl}, bio = ${bio} WHERE id = ${userId}`;
+        const { avatarUrl, bio } = args;
+        await sql`UPDATE users SET avatar_url = ${avatarUrl}, bio = ${bio} WHERE id = ${me.userId}`;
+        return res.status(200).json({ ok: true });
+      }
+
+      case 'updatePostRepliesDisabled': {
+        if (!me) return res.status(401).json({ error: 'unauthorized' });
+        const { postId, repliesDisabled } = args;
+        
+        // Check if post exists and user owns it
+        const post = await sql`SELECT user_id FROM posts WHERE id = ${postId}`;
+        if (post.length === 0) return res.status(404).json({ error: 'post_not_found' });
+        if (post[0].user_id !== me.userId) return res.status(403).json({ error: 'not_authorized' });
+        
+        await sql`UPDATE posts SET replies_disabled = ${repliesDisabled} WHERE id = ${postId}`;
         return res.status(200).json({ ok: true });
       }
 

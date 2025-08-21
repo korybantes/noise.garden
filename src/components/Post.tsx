@@ -1,10 +1,16 @@
 import { useState } from 'react';
-import { MessageCircle, Clock, Trash2, Repeat2, ShieldAlert, ShieldCheck, Link2, Share2 } from 'lucide-react';
+import { MessageCircle, Share2, Trash2, Flag, Clock, Lock, Repeat2, ShieldAlert, ShieldCheck, Link2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Post as PostType, deletePost } from '../lib/database';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigation } from '../hooks/useNavigation';
 import { RepostModal } from './RepostModal';
+import { PostFlag } from './PostFlag';
+import { PopupThread } from './PopupThread';
+import { DoNotReplyToggle } from './DoNotReplyToggle';
+import { InstagramPostGenerator } from './InstagramPostGenerator';
+import { t } from '../lib/translations';
+import { useLanguage } from '../hooks/useLanguage';
 
 interface PostProps {
   post: PostType;
@@ -16,7 +22,15 @@ interface PostProps {
 }
 
 function linkifyHashtags(text: string): JSX.Element[] {
-  const parts = text.split(/(#[\p{L}\p{N}_-]+)/u);
+  // First, escape any HTML to prevent XSS and display issues
+  const escapedText = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+    
+  const parts = escapedText.split(/(#[\p{L}\p{N}_-]+)/u);
   return parts.map((part, idx) => {
     if (part.startsWith('#') && part.length > 1) {
       const tag = part;
@@ -35,71 +49,14 @@ function linkifyHashtags(text: string): JSX.Element[] {
   });
 }
 
-async function drawAvatar(ctx: CanvasRenderingContext2D, url: string, x: number, y: number, size: number) {
-  try {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.src = url;
-    await new Promise((res, rej) => { img.onload = () => res(null); img.onerror = rej; });
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(x + size/2, y + size/2, size/2, 0, Math.PI*2);
-    ctx.closePath();
-    ctx.clip();
-    ctx.drawImage(img, x, y, size, size);
-    ctx.restore();
-  } catch {}
-}
-
-async function sharePostAsImage(post: PostType) {
-  try {
-    const canvas = document.createElement('canvas');
-    canvas.width = 1080; canvas.height = 1920;
-    const ctx = canvas.getContext('2d')!;
-    const isDark = document.documentElement.classList.contains('dark');
-    ctx.fillStyle = isDark ? '#0b1220' : '#ffffff';
-    ctx.fillRect(0,0,canvas.width,canvas.height);
-
-    // Header with avatar and username
-    if (post.avatar_url) {
-      await drawAvatar(ctx, post.avatar_url, 120, 160, 96);
-    }
-    ctx.fillStyle = isDark ? '#f3f4f6' : '#111827';
-    ctx.font = 'bold 44px ui-monospace, monospace';
-    ctx.fillText(`@${post.username}`, 240, 210);
-
-    // Content
-    ctx.font = '48px ui-monospace, monospace';
-    const lines = post.content.split('\n').slice(0, 22);
-    let y = 360;
-    lines.forEach(line => { ctx.fillText(line, 120, y); y += 64; });
-
-    // Footer branding
-    ctx.globalAlpha = 0.7;
-    ctx.font = '32px ui-monospace, monospace';
-    ctx.fillText('posted in noise.garden', 120, 1740);
-    ctx.globalAlpha = 1;
-
-    const dataUrl = canvas.toDataURL('image/png');
-
-    if ((navigator as any).canShare && (navigator as any).share) {
-      const blob = await (await fetch(dataUrl)).blob();
-      await (navigator as any).share({ files: [new File([blob], 'post.png', { type: 'image/png' })], title: 'Share to Instagram Story', text: post.content });
-      return;
-    }
-
-    const a = document.createElement('a');
-    a.href = dataUrl; a.download = 'post.png'; a.click();
-  } catch (e) {
-    console.warn('Share failed', e);
-  }
-}
-
 export function Post({ post, onReply, onViewReplies, onDeleted, onReposted, isReply = false }: PostProps) {
   const [showActions, setShowActions] = useState(false);
   const [showRepost, setShowRepost] = useState(false);
+  const [showFlagModal, setShowFlagModal] = useState(false);
+  const [showInstagramModal, setShowInstagramModal] = useState(false);
   const { user } = useAuth();
   const { setView, setProfileUsername } = useNavigation();
+  const { language } = useLanguage();
 
   const canDelete = !!user && (user.userId === post.user_id || user.role === 'admin' || user.role === 'moderator');
 
@@ -108,6 +65,11 @@ export function Post({ post, onReply, onViewReplies, onDeleted, onReposted, isRe
     onDeleted?.(post.id);
     const ok = await deletePost(post.id, user.userId);
     if (!ok) console.warn('Delete failed');
+  };
+
+  const sharePostAsImage = () => {
+    // Show Instagram story generator modal
+    setShowInstagramModal(true);
   };
 
   const RoleBadge = () => {
@@ -144,10 +106,6 @@ export function Post({ post, onReply, onViewReplies, onDeleted, onReposted, isRe
     window.location.hash = `#/post/${post.repost_of}`;
   };
 
-  const returnToFeed = () => {
-    window.history.pushState({}, '', window.location.pathname + window.location.search);
-  };
-
   return (
     <div className={`bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4 transition-shadow hover:shadow-sm ${isReply ? 'ml-6 border-l-4 border-l-gray-200 dark:border-l-gray-800' : ''}`} onMouseEnter={() => setShowActions(true)} onMouseLeave={() => setShowActions(false)}>
       <div className="flex items-start justify-between mb-2">
@@ -159,7 +117,7 @@ export function Post({ post, onReply, onViewReplies, onDeleted, onReposted, isRe
           <span className="text-xs font-mono text-gray-400 flex items-center gap-1"><Clock size={12} />{formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}</span>
         </div>
         <div className="text-xs font-mono text-gray-300 dark:text-gray-500 flex items-center gap-3">
-          <span>expires in {formatDistanceToNow(new Date(post.expires_at))}</span>
+          <span>{t('expiresIn', language)} {formatDistanceToNow(new Date(post.expires_at))}</span>
         </div>
       </div>
       
@@ -178,22 +136,109 @@ export function Post({ post, onReply, onViewReplies, onDeleted, onReposted, isRe
 
       <div className="font-mono text-sm text-gray-800 dark:text-gray-100 leading-relaxed mb-3 whitespace-pre-wrap">{linkifyHashtags(post.content)}</div>
       
+      {/* Status Indicators for Community Health Features */}
+      {post.is_quarantined && (
+        <div className="mb-3 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-red-700 dark:text-red-300 text-xs font-mono">
+          ⚠️ {t('postQuarantined', language)}
+        </div>
+      )}
+
+      {post.replies_disabled && (
+        <div className="mb-3 p-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded text-gray-600 dark:text-gray-400 text-xs font-mono">
+          🔒 {t('repliesDisabled', language)}
+        </div>
+      )}
+      
       {(showActions || isReply) && !isReply && (
         <div className="flex items-center gap-4 text-gray-400 dark:text-gray-500">
-          <button onClick={() => onReply(post)} className="flex items-center gap-1 text-xs font-mono hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title="Reply to this post"><MessageCircle size={14} />reply</button>
+          <button onClick={() => onReply(post)} className="flex items-center gap-1 text-xs font-mono hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title={t('replyToThisPost', language)}><MessageCircle size={14} />{t('reply', language)}</button>
           {post.reply_count && post.reply_count > 0 && onViewReplies && (
-            <button onClick={() => onViewReplies(post)} className="text-xs font-mono hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title="View replies">{post.reply_count} {post.reply_count === 1 ? 'reply' : 'replies'}</button>
+            <button onClick={() => onViewReplies(post)} className="text-xs font-mono hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title={t('viewReplies', language)}>{post.reply_count} {post.reply_count === 1 ? t('reply', language) : t('replies', language)}</button>
           )}
-          <button onClick={() => setShowRepost(true)} className="flex items-center gap-1 text-xs font-mono hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title="Repost this content"><Repeat2 size={14} /> repost</button>
-          <button onClick={() => sharePostAsImage(post)} className="flex items-center gap-1 text-xs font-mono hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title="Share as image"><Share2 size={14} /> share</button>
+          <button onClick={() => setShowRepost(true)} className="flex items-center gap-1 text-xs font-mono hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title={t('repostThisContent', language)}><Repeat2 size={14} /> {t('repost', language)}</button>
+          <button onClick={() => sharePostAsImage()} className="flex items-center gap-1 text-xs font-mono hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title={t('shareAsImage', language)}><Share2 size={14} /> {t('share', language)}</button>
+          
+          {/* Community Health Actions - Only show when hovering */}
+          {user && user.userId !== post.user_id && (
+            <button 
+              onClick={() => setShowFlagModal(true)} 
+              className="flex items-center gap-1 text-xs font-mono hover:text-red-500 dark:hover:text-red-400 transition-colors" 
+              title={t('flagThisPost', language)}
+            >
+              <Flag size={14} /> {t('flag', language)}
+            </button>
+          )}
+          
+          {user && user.userId === post.user_id && (
+            <>
+              <DoNotReplyToggle
+                postId={post.id}
+                repliesDisabled={post.replies_disabled || false}
+                onToggle={() => {
+                  // Refresh post data if needed
+                  // You can implement a refresh function here
+                }}
+              />
+              
+              {!post.parent_id && (
+                <PopupThread
+                  postId={post.id}
+                  isPopupThread={post.is_popup_thread || false}
+                  replyLimit={post.popup_reply_limit}
+                  timeLimitMinutes={post.popup_time_limit}
+                  closedAt={post.popup_closed_at}
+                  onStatusChange={() => {
+                    // Refresh post data if needed
+                  }}
+                />
+              )}
+            </>
+          )}
+          
           {canDelete && (
-            <button onClick={handleDelete} className="flex items-center gap-1 text-xs font-mono hover:text-red-600 dark:hover:text-red-400 transition-colors" title={user?.role === 'admin' || user?.role === 'moderator' ? 'Delete this post (admin/moderator)' : 'Delete your post'}><Trash2 size={14} /> delete</button>
+            <button onClick={handleDelete} className="flex items-center gap-1 text-xs font-mono hover:text-red-600 dark:hover:text-red-400 transition-colors" title={user?.role === 'admin' || user?.role === 'moderator' ? t('deleteThisPostAdmin', language) : t('deleteYourPost', language)}><Trash2 size={14} /> {t('delete', language)}</button>
           )}
+        </div>
+      )}
+
+      {/* Community Health Features - PostActions Component */}
+      {/* The PostActions component is removed, so these features are now directly in the action buttons */}
+      {post.is_quarantined && (
+        <div className="flex items-center gap-2 text-red-500 dark:text-red-400 text-xs font-mono">
+          <Flag size={14} /> {t('quarantined', language)}
+        </div>
+      )}
+      {post.replies_disabled && (
+        <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400 text-xs font-mono">
+          <Lock size={14} /> {t('repliesDisabled', language)}
         </div>
       )}
 
       {showRepost && (
         <RepostModal postId={post.repost_of ? post.repost_of : post.id} onClose={() => setShowRepost(false)} onReposted={() => { setShowRepost(false); onReposted?.(); }} />
+      )}
+
+      {/* Flag Modal */}
+      {showFlagModal && (
+        <PostFlag
+          postId={post.id}
+          onClose={() => setShowFlagModal(false)}
+          onFlagged={() => setShowFlagModal(false)}
+        />
+      )}
+
+      {/* Instagram Post Generator Modal */}
+      {showInstagramModal && (
+        <InstagramPostGenerator
+          post={{
+            id: post.id,
+            content: post.content,
+            username: post.username,
+            avatar_url: post.avatar_url,
+            created_at: post.created_at
+          }}
+          onClose={() => setShowInstagramModal(false)}
+        />
       )}
     </div>
   );

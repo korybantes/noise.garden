@@ -1,11 +1,13 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { RefreshCw, ArrowLeft, Tag, ChevronDown } from 'lucide-react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { RefreshCw, ArrowLeft, Tag } from 'lucide-react';
 import { Post as PostType, getRandomPosts, getPostById, getPostReplies } from '../lib/database';
 import { Post } from './Post';
 import { PostComposer } from './PostComposer';
 import { loadFeedSettings, contentMatchesMuted, isWithinQuietHours } from '../lib/settings';
 import { useRouter } from '../hooks/useRouter';
 import { Select } from './ui/Select';
+import { t } from '../lib/translations';
+import { useLanguage } from '../hooks/useLanguage';
 
 export function Feed() {
   const [posts, setPosts] = useState<PostType[]>([]);
@@ -18,6 +20,7 @@ export function Feed() {
   const [viewingReplies, setViewingReplies] = useState<{ post: PostType; replies: PostType[] } | null>(null);
   const [settingsVersion, setSettingsVersion] = useState(0);
   const { route } = useRouter();
+  const { language } = useLanguage();
 
   const settings = useMemo(() => loadFeedSettings(), [settingsVersion]);
 
@@ -144,7 +147,7 @@ export function Feed() {
   if (viewingReplies) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
-        <div className="max-w-2xl mx-auto p-4">
+        <div className="w-full max-w-2xl mx-auto px-2 sm:px-4">
           <div className="flex items-center gap-4 mb-6">
             <button
               onClick={() => { 
@@ -157,7 +160,7 @@ export function Feed() {
               className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-mono text-sm transition-colors"
             >
               <ArrowLeft size={16} />
-              back to feed
+              {t('backToFeed', language)}
             </button>
           </div>
 
@@ -183,7 +186,7 @@ export function Feed() {
           <div className="mt-6 space-y-4">
             {viewingReplies.replies.length === 0 ? (
               <div className="text-center py-8 text-gray-500 dark:text-gray-400 font-mono text-sm">
-                no replies yet
+                {t('noReplies', language)}
               </div>
             ) : (
               viewingReplies.replies.map((reply) => (
@@ -204,15 +207,15 @@ export function Feed() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
-      <div className="max-w-2xl mx-auto p-4">
+      <div className="w-full max-w-2xl mx-auto px-2 sm:px-4">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-xl font-mono font-bold text-gray-900 dark:text-gray-100">noise garden</h1>
-            <p className="text-sm font-mono text-gray-500 dark:text-gray-400">random thoughts, shuffled daily</p>
+            <h1 className="text-xl font-mono font-bold text-gray-900 dark:text-gray-100">{t('noiseGarden', language)}</h1>
+            <p className="text-sm font-mono text-gray-500 dark:text-gray-400">{t('randomThoughtsShuffledDaily', language)}</p>
             {currentRoom && (
               <div className="mt-1 inline-flex items-center gap-2 text-xs font-mono text-gray-500 dark:text-gray-400">
-                <span className="inline-flex items-center gap-1"><Tag size={12} /> room: {currentRoom}</span>
-                <button onClick={clearRoom} className="underline">leave room</button>
+                <span className="inline-flex items-center gap-1"><Tag size={12} /> {t('room', language)}: {currentRoom}</span>
+                <button onClick={clearRoom} className="underline">{t('leaveRoom', language)}</button>
               </div>
             )}
           </div>
@@ -221,11 +224,11 @@ export function Feed() {
             <Select 
               value={sortBy} 
               options={[
-                { value: 'newest', label: 'newest' },
-                { value: 'oldest', label: 'oldest' }
+                { value: 'newest', label: t('newest', language) },
+                { value: 'oldest', label: t('oldest', language) }
               ]} 
               onChange={(v) => setSortBy(v as 'newest' | 'oldest')} 
-              ariaLabel="sort by"
+              ariaLabel={t('sortBy', language)}
             />
           <button
               onClick={() => loadPosts({ silent: false, reset: true })}
@@ -233,7 +236,7 @@ export function Feed() {
             className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-mono text-sm transition-colors disabled:opacity-50"
           >
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-            refresh
+            {t('refresh', language)}
           </button>
           </div>
         </div>
@@ -243,17 +246,17 @@ export function Feed() {
         )}
 
         {quiet && (
-          <div className="mb-4 p-3 border border-gray-200 dark:border-gray-800 rounded text-xs font-mono text-gray-600 dark:text-gray-300">quiet hours are active — posting is dimmed</div>
+          <div className="mb-4 p-3 border border-gray-200 dark:border-gray-800 rounded text-xs font-mono text-gray-600 dark:text-gray-300">{t('quietHoursActive', language)}</div>
         )}
 
         {loading ? (
           <div className="text-center py-8 font-mono text-gray-500 dark:text-gray-300">
-            loading random thoughts...
+            {t('loadingRandomThoughts', language)}
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-12">
-            <p className="font-mono text-gray-500 dark:text-gray-400 mb-4">nothing here</p>
-            <p className="font-mono text-sm text-gray-400 dark:text-gray-500">try removing mutes or switching rooms</p>
+            <p className="font-mono text-gray-500 dark:text-gray-400 mb-4">{t('nothingHere', language)}</p>
+            <p className="font-mono text-sm text-gray-400 dark:text-gray-500">{t('tryRemovingMutes', language)}</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -276,13 +279,13 @@ export function Feed() {
             
             {loadingMore && (
               <div className="text-center py-4 font-mono text-gray-500 dark:text-gray-300">
-                loading more...
+                {t('loadingMore', language)}
               </div>
             )}
             
             {!hasMore && filtered.length > 0 && (
               <div className="text-center py-4 font-mono text-gray-500 dark:text-gray-300">
-                no more posts
+                {t('noMorePosts', language)}
               </div>
             )}
           </div>

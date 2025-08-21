@@ -28,6 +28,13 @@ export interface Post {
   repost_count?: number;
   image_url?: string | null;
   avatar_url?: string | null;
+  is_whisper?: boolean;
+  is_quarantined?: boolean;
+  is_popup_thread?: boolean;
+  popup_reply_limit?: number;
+  popup_time_limit?: number;
+  popup_closed_at?: Date;
+  replies_disabled?: boolean;
 }
 
 export interface Reply {
@@ -57,6 +64,24 @@ export interface Notification {
   from_username: string;
   created_at: Date;
   read: boolean;
+}
+
+export interface Flag {
+  id: string;
+  post_id: string;
+  user_id: string;
+  username: string;
+  reason: string;
+  created_at: Date;
+}
+
+export interface PopupThread {
+  id: string;
+  post_id: string;
+  reply_limit: number;
+  time_limit_minutes: number;
+  closed_at?: Date;
+  created_at: Date;
 }
 
 function generateInviteCode(): string {
@@ -95,7 +120,14 @@ export async function initDatabase() {
       expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '30 days'),
       parent_id UUID REFERENCES posts(id) ON DELETE CASCADE,
       repost_of UUID REFERENCES posts(id) ON DELETE SET NULL,
-      image_url TEXT
+      image_url TEXT,
+      is_whisper BOOLEAN DEFAULT FALSE,
+      is_quarantined BOOLEAN DEFAULT FALSE,
+      is_popup_thread BOOLEAN DEFAULT FALSE,
+      popup_reply_limit INTEGER,
+      popup_time_limit INTEGER,
+      popup_closed_at TIMESTAMPTZ,
+      replies_disabled BOOLEAN DEFAULT FALSE
     )
   `;
 
@@ -129,16 +161,47 @@ export async function initDatabase() {
       user_id UUID REFERENCES users(id) ON DELETE CASCADE,
       type TEXT NOT NULL,
       post_id UUID REFERENCES posts(id) ON DELETE CASCADE,
-      from_user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      from_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
       from_username TEXT NOT NULL,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       read BOOLEAN DEFAULT FALSE
     )
   `;
 
+  // Community flags table
+  await sql`
+    CREATE TABLE IF NOT EXISTS flags (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      post_id UUID REFERENCES posts(id) ON DELETE CASCADE,
+      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      reason TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(post_id, user_id)
+    )
+  `;
+
+  // Popup threads table
+  await sql`
+    CREATE TABLE IF NOT EXISTS popup_threads (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      post_id UUID REFERENCES posts(id) ON DELETE CASCADE,
+      reply_limit INTEGER NOT NULL,
+      time_limit_minutes INTEGER NOT NULL,
+      closed_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `;
+
   // Clean up expired posts
   await sql`DELETE FROM posts WHERE expires_at < NOW()`;
   await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS image_url TEXT`;
+  await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS is_whisper BOOLEAN DEFAULT FALSE`;
+  await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS is_quarantined BOOLEAN DEFAULT FALSE`;
+  await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS is_popup_thread BOOLEAN DEFAULT FALSE`;
+  await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS popup_reply_limit INTEGER`;
+  await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS popup_time_limit INTEGER`;
+  await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS popup_closed_at TIMESTAMPTZ`;
+  await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS replies_disabled BOOLEAN DEFAULT FALSE`;
 }
 
 export async function createUser(username: string, passwordHash: string): Promise<User> {
@@ -174,17 +237,37 @@ export async function createPost(
   parentId?: string,
   repostOf?: string | null,
   imageUrl?: string | null,
-  ttlSeconds?: number | null
+  ttlSeconds?: number | null,
+  isWhisper: boolean = false,
+  repliesDisabled: boolean = false,
+  isPopupThread: boolean = false,
+  popupReplyLimit?: number,
+  popupTimeLimit?: number
 ): Promise<Post> {
   const expiresAt = computeExpiresAtFromTtlSeconds(ttlSeconds);
   const result = await sql`
-    INSERT INTO posts (user_id, content, parent_id, repost_of, image_url, expires_at)
-    VALUES (${userId}, ${content}, ${parentId || null}, ${repostOf || null}, ${imageUrl || null}, ${expiresAt || sql`DEFAULT`})
-    RETURNING id, user_id, content, created_at, expires_at, parent_id, repost_of, image_url
+    INSERT INTO posts (
+      user_id, content, parent_id, repost_of, image_url, expires_at, 
+      is_whisper, replies_disabled, is_popup_thread, popup_reply_limit, popup_time_limit
+    )
+    VALUES (
+      ${userId}, ${content}, ${parentId || null}, ${repostOf || null}, ${imageUrl || null}, ${expiresAt || sql`DEFAULT`},
+      ${isWhisper}, ${repliesDisabled}, ${isPopupThread}, ${popupReplyLimit || null}, ${popupTimeLimit || null}
+    )
+    RETURNING id, user_id, content, created_at, expires_at, parent_id, repost_of, image_url,
+              is_whisper, replies_disabled, is_popup_thread, popup_reply_limit, popup_time_limit
   `;
   
   const post = result[0] as any;
   const user = await sql`SELECT username, role, avatar_url FROM users WHERE id = ${userId}`;
+  
+  // Create popup thread record if needed
+  if (isPopupThread && popupReplyLimit && popupTimeLimit) {
+    await sql`
+      INSERT INTO popup_threads (post_id, reply_limit, time_limit_minutes)
+      VALUES (${post.id}, ${popupReplyLimit}, ${popupTimeLimit})
+    `;
+  }
   
   // Create notification for repost
   if (repostOf) {
@@ -215,6 +298,7 @@ export async function getRandomPosts(limit: number = 20, offset: number = 0, sor
   
   const result = await sql`
     SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of, p.image_url,
+           p.is_whisper, p.is_quarantined, p.is_popup_thread, p.popup_reply_limit, p.popup_time_limit, p.popup_closed_at, p.replies_disabled,
            u.username, u.role, u.avatar_url,
            (SELECT COUNT(*) FROM posts replies WHERE replies.parent_id = p.id) as reply_count
     FROM posts p
@@ -223,12 +307,18 @@ export async function getRandomPosts(limit: number = 20, offset: number = 0, sor
     ORDER BY ${orderBy}
     LIMIT ${limit} OFFSET ${offset}
   `;
-  return result as Post[];
+  
+  return result.map(row => ({
+    ...row,
+    reply_count: Number(row.reply_count) || 0,
+    repost_count: 0
+  })) as Post[];
 }
 
 export async function getPostReplies(postId: string): Promise<Post[]> {
   const result = await sql`
     SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of, p.image_url,
+           p.is_whisper, p.is_quarantined, p.is_popup_thread, p.popup_reply_limit, p.popup_time_limit, p.popup_closed_at, p.replies_disabled,
            u.username, u.role, u.avatar_url,
            0 as reply_count
     FROM posts p
@@ -242,6 +332,7 @@ export async function getPostReplies(postId: string): Promise<Post[]> {
 export async function getUserPostsByUsername(username: string): Promise<Post[]> {
   const result = await sql`
     SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of, p.image_url,
+           p.is_whisper, p.is_quarantined, p.is_popup_thread, p.popup_reply_limit, p.popup_time_limit, p.popup_closed_at, p.replies_disabled,
            u.username, u.role, u.avatar_url,
            (SELECT COUNT(*) FROM posts replies WHERE replies.parent_id = p.id) as reply_count
     FROM posts p
@@ -255,6 +346,7 @@ export async function getUserPostsByUsername(username: string): Promise<Post[]> 
 export async function getPostById(id: string): Promise<Post | null> {
   const result = await sql`
     SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of, p.image_url,
+           p.is_whisper, p.is_quarantined, p.is_popup_thread, p.popup_reply_limit, p.popup_time_limit, p.popup_closed_at, p.replies_disabled,
            u.username, u.role, u.avatar_url,
            (SELECT COUNT(*) FROM posts replies WHERE replies.parent_id = p.id) as reply_count,
            (SELECT COUNT(*) FROM posts rp WHERE rp.repost_of = p.id) as repost_count
@@ -512,4 +604,214 @@ export async function getInviterForUser(userId: string): Promise<{ inviter_id: s
     LIMIT 1
   `;
   return (rows[0] as any) || null;
+}
+
+export async function createAdminInvite(adminId: string): Promise<Invite> {
+  // Admins can generate unlimited invites
+  const code = generateInviteCode();
+  const rows = await sql`INSERT INTO invites (code, created_by) VALUES (${code}, ${adminId}) RETURNING code, created_by, created_at, used_by, used_at`;
+  return rows[0] as Invite;
+}
+
+// Community health functions
+export async function flagPost(postId: string, userId: string, reason: string): Promise<void> {
+  await sql`
+    INSERT INTO flags (post_id, user_id, reason)
+    VALUES (${postId}, ${userId}, ${reason})
+    ON CONFLICT (post_id, user_id) DO UPDATE SET reason = ${reason}
+  `;
+}
+
+export async function getPostFlags(postId: string): Promise<Flag[]> {
+  const result = await sql`
+    SELECT f.id, f.post_id, f.user_id, f.reason, f.created_at, u.username
+    FROM flags f
+    JOIN users u ON f.user_id = u.id
+    WHERE f.post_id = ${postId}
+    ORDER BY f.created_at DESC
+  `;
+  return result.map(row => ({
+    id: row.id,
+    post_id: row.post_id,
+    user_id: row.user_id,
+    username: row.username,
+    reason: row.reason,
+    created_at: row.created_at
+  }));
+}
+
+export async function getFlaggedPosts(): Promise<Post[]> {
+  const result = await sql`
+    SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of, p.image_url,
+           p.is_quarantined, p.is_popup_thread, p.popup_reply_limit, p.popup_time_limit, p.popup_closed_at, p.replies_disabled,
+           u.username, u.role, u.avatar_url,
+           (SELECT COUNT(*) FROM posts replies WHERE replies.parent_id = p.id) as reply_count,
+           (SELECT COUNT(*) FROM posts rp WHERE rp.repost_of = p.id) as repost_count,
+           (SELECT COUNT(*) FROM flags WHERE flags.post_id = p.id) as flag_count
+    FROM posts p
+    JOIN users u ON p.user_id = u.id
+    WHERE EXISTS (SELECT 1 FROM flags WHERE flags.post_id = p.id)
+    ORDER BY p.created_at DESC
+  `;
+  
+  return result.map(row => ({
+    id: row.id,
+    user_id: row.user_id,
+    username: row.username,
+    content: row.content,
+    created_at: row.created_at,
+    expires_at: row.expires_at,
+    parent_id: row.parent_id,
+    repost_of: row.repost_of,
+    image_url: row.image_url,
+    avatar_url: row.avatar_url,
+    role: row.role as UserRole,
+    is_whisper: row.is_whisper || false,
+    is_quarantined: row.is_quarantined || false,
+    is_popup_thread: row.is_popup_thread || false,
+    popup_reply_limit: row.popup_reply_limit,
+    popup_time_limit: row.popup_time_limit,
+    popup_closed_at: row.popup_closed_at,
+    replies_disabled: row.replies_disabled || false,
+    reply_count: Number(row.reply_count) || 0,
+    repost_count: Number(row.repost_count) || 0
+  })) as Post[];
+}
+
+export async function quarantinePost(postId: string, adminId: string): Promise<void> {
+  await sql`UPDATE posts SET is_quarantined = TRUE WHERE id = ${postId}`;
+  
+  // Notify the original poster
+  const post = await sql`SELECT user_id FROM posts WHERE id = ${postId}`;
+  if (post.length > 0) {
+    const admin = await sql`SELECT username FROM users WHERE id = ${adminId}`;
+    await sql`
+      INSERT INTO notifications (user_id, type, post_id, from_user_id, from_username)
+      VALUES (${post[0].user_id}, 'quarantine', ${postId}, ${adminId}, ${admin[0].username})
+    `;
+  }
+}
+
+export async function unquarantinePost(postId: string, adminId: string): Promise<void> {
+  await sql`UPDATE posts SET is_quarantined = FALSE WHERE id = ${postId}`;
+}
+
+export async function createPopupThread(
+  postId: string, 
+  replyLimit: number, 
+  timeLimitMinutes: number
+): Promise<void> {
+  await sql`
+    UPDATE posts 
+    SET is_popup_thread = TRUE, popup_reply_limit = ${replyLimit}, popup_time_limit = ${timeLimitMinutes}
+    WHERE id = ${postId}
+  `;
+  
+  await sql`
+    INSERT INTO popup_threads (post_id, reply_limit, time_limit_minutes)
+    VALUES (${postId}, ${replyLimit}, ${timeLimitMinutes})
+  `;
+}
+
+export async function closePopupThread(postId: string): Promise<void> {
+  await sql`
+    UPDATE posts 
+    SET popup_closed_at = NOW()
+    WHERE id = ${postId}
+  `;
+  
+  await sql`
+    UPDATE popup_threads 
+    SET closed_at = NOW()
+    WHERE post_id = ${postId}
+  `;
+}
+
+export async function checkPopupThreadStatus(postId: string): Promise<{
+  isClosed: boolean;
+  reason: 'time' | 'replies' | 'manual' | null;
+  remainingReplies?: number;
+  remainingTime?: number;
+}> {
+  const post = await sql`
+    SELECT p.is_popup_thread, p.popup_reply_limit, p.popup_time_limit, p.popup_closed_at,
+           pt.closed_at, pt.created_at,
+           (SELECT COUNT(*) FROM posts replies WHERE replies.parent_id = p.id) as reply_count
+    FROM posts p
+    LEFT JOIN popup_threads pt ON p.id = pt.post_id
+    WHERE p.id = ${postId}
+  `;
+  
+  if (post.length === 0 || !post[0].is_popup_thread) {
+    return { isClosed: false, reason: null };
+  }
+  
+  const row = post[0];
+  const replyCount = Number(row.reply_count) || 0;
+  const timeLimitMs = (row.popup_time_limit || 0) * 60 * 1000;
+  const createdAt = new Date(row.created_at);
+  const now = new Date();
+  
+  // Check if closed by replies limit
+  if (row.popup_reply_limit && replyCount >= row.popup_reply_limit) {
+    return { isClosed: true, reason: 'replies', remainingReplies: 0 };
+  }
+  
+  // Check if closed by time limit
+  if (timeLimitMs > 0 && (now.getTime() - createdAt.getTime()) >= timeLimitMs) {
+    return { isClosed: true, reason: 'time', remainingTime: 0 };
+  }
+  
+  // Check if manually closed
+  if (row.popup_closed_at || row.closed_at) {
+    return { isClosed: true, reason: 'manual' };
+  }
+  
+  // Calculate remaining
+  const remainingReplies = row.popup_reply_limit ? Math.max(0, row.popup_reply_limit - replyCount) : undefined;
+  const remainingTime = timeLimitMs > 0 ? Math.max(0, timeLimitMs - (now.getTime() - createdAt.getTime())) : undefined;
+  
+  return { 
+    isClosed: false, 
+    reason: null, 
+    remainingReplies, 
+    remainingTime 
+  };
+}
+
+export async function getFlaggedPostsForAdmin(adminId: string): Promise<Post[]> {
+  const requester = await sql`SELECT role FROM users WHERE id = ${adminId}`;
+  if (requester.length === 0 || !['admin', 'moderator'].includes(requester[0].role)) {
+    throw new Error('Unauthorized');
+  }
+
+  return getFlaggedPosts();
+}
+
+export async function getFlagCountsForPost(postId: string): Promise<{ total: number; reasons: { reason: string; count: number }[] }> {
+  const result = await sql`
+    SELECT reason, COUNT(*) as count
+    FROM flags
+    WHERE post_id = ${postId}
+    GROUP BY reason
+    ORDER BY count DESC
+  `;
+
+  const total = result.reduce((sum, row) => sum + Number(row.count), 0);
+  const reasons = result.map(row => ({
+    reason: row.reason,
+    count: Number(row.count)
+  }));
+
+  return { total, reasons };
+}
+
+export async function shouldQuarantinePost(postId: string, threshold: number = 3): Promise<boolean> {
+  const flagCount = await sql`
+    SELECT COUNT(*) as count
+    FROM flags
+    WHERE post_id = ${postId}
+  `;
+  
+  return Number(flagCount[0].count) >= threshold;
 }

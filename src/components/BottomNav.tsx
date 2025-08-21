@@ -3,29 +3,32 @@ import { useNavigation } from '../hooks/useNavigation';
 import { useAuth } from '../hooks/useAuth';
 import { useState } from 'react';
 import { AdminPanel } from './AdminPanel';
+import { t } from '../lib/translations';
+import { useLanguage } from '../hooks/useLanguage';
 
 export function BottomNav() {
-  const { view, setView, setShowChat, chatActive } = useNavigation();
+  const { view, setView, chatActive } = useNavigation();
   const { user } = useAuth();
   const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const { language } = useLanguage();
 
   return (
     <>
       <nav className="fixed bottom-0 inset-x-0 md:hidden bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
-        <div className="max-w-2xl mx-auto flex items-center justify-around py-2">
+        <div className="w-full max-w-2xl mx-auto flex items-center justify-around py-2 px-2">
           <button
             onClick={() => setView('feed')}
             className={`flex flex-col items-center text-xs ${view === 'feed' ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-300'}`}
           >
             <Home size={18} />
-            feed
+            {t('feed', language)}
           </button>
           <button
             onClick={() => setView('profile')}
             className={`flex flex-col items-center text-xs ${view === 'profile' ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-300'}`}
           >
             <User size={18} />
-            profile
+            {t('profile', language)}
           </button>
           <button
             onClick={() => setView('chat')}
@@ -33,14 +36,14 @@ export function BottomNav() {
           >
             {chatActive && <span className="absolute -top-1 right-3 w-2 h-2 bg-green-500 rounded-full" />}
             <MessageSquare size={18} />
-            chat
+            {t('chat', language)}
           </button>
           <button
             onClick={() => { window.location.href = '/invite'; }}
             className="flex flex-col items-center text-xs text-gray-600 dark:text-gray-300"
           >
             <Ticket size={18} />
-            invite
+            {t('invite', language)}
           </button>
           {user && ['admin', 'moderator'].includes(user.role) && (
             <button
@@ -48,7 +51,7 @@ export function BottomNav() {
               className="flex flex-col items-center text-xs text-gray-600 dark:text-gray-300"
             >
               <Shield size={18} />
-              admin
+              {t('admin', language)}
             </button>
           )}
         </div>

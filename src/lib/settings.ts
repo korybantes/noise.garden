@@ -1,6 +1,7 @@
 export interface FeedSettings {
 	mutedWords: string[];
 	quietHours: { startHour: number; endHour: number } | null;
+	language: 'en' | 'tr';
 }
 
 const KEY = 'feed_settings_v1';
@@ -8,16 +9,17 @@ const KEY = 'feed_settings_v1';
 export function loadFeedSettings(): FeedSettings {
 	try {
 		const raw = localStorage.getItem(KEY);
-		if (!raw) return { mutedWords: [], quietHours: null };
+		if (!raw) return { mutedWords: [], quietHours: null, language: 'en' };
 		const parsed = JSON.parse(raw);
 		return {
 			mutedWords: Array.isArray(parsed?.mutedWords) ? parsed.mutedWords.map(String) : [],
 			quietHours: parsed?.quietHours && typeof parsed.quietHours.startHour === 'number' && typeof parsed.quietHours.endHour === 'number'
 				? { startHour: parsed.quietHours.startHour, endHour: parsed.quietHours.endHour }
 				: null,
+			language: parsed?.language === 'tr' ? 'tr' : 'en',
 		};
 	} catch {
-		return { mutedWords: [], quietHours: null };
+		return { mutedWords: [], quietHours: null, language: 'en' };
 	}
 }
 

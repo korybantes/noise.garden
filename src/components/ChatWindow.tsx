@@ -3,12 +3,14 @@ import { X, Send, Users, Shuffle } from 'lucide-react';
 import * as Ably from 'ably';
 import { ChatClient, ChatMessageEvent, RoomStatusChange, TypingSetEvent } from '@ably/chat';
 import { useNavigation } from '../hooks/useNavigation';
+import { t } from '../lib/translations';
+import { useLanguage } from '../hooks/useLanguage';
 
 let ablySingleton: Ably.Realtime | null = null;
 let chatSingleton: ChatClient | null = null;
 
 interface ChatWindowProps {
-  onClose: () => void;
+  onClose?: () => void;
 }
 
 interface ChatMessage {
@@ -34,6 +36,7 @@ export function ChatWindow({ onClose }: ChatWindowProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingClearTimer = useRef<number | null>(null);
   const seenMessageIdsRef = useRef<Set<string>>(new Set());
+  const { language } = useLanguage();
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -96,6 +99,19 @@ export function ChatWindow({ onClose }: ChatWindowProps) {
     // Do not close on unmount to keep connection alive; explicit disconnect handles cleanup
     return () => {};
   }, []);
+
+  // Toggle chat-active class on document.body based on connection status
+  useEffect(() => {
+    if (connectionStatus === 'connected') {
+      document.body.classList.add('chat-active');
+    } else {
+      document.body.classList.remove('chat-active');
+    }
+    
+    return () => {
+      document.body.classList.remove('chat-active');
+    };
+  }, [connectionStatus]);
 
   // Presence count in lobby
   useEffect(() => {
@@ -299,10 +315,10 @@ export function ChatWindow({ onClose }: ChatWindowProps) {
   return (
     <div className="min-h-[calc(100vh-56px)] bg-gray-50 dark:bg-gray-950">
       <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-        <div className="max-w-2xl mx-auto flex items-center justify-between p-4">
+        <div className="w-full max-w-2xl mx-auto flex items-center justify-between px-2 sm:px-4 py-4">
           <div className="flex items-center gap-2">
             <Users size={18} className="text-gray-600 dark:text-gray-300" />
-            <h2 className="font-mono font-bold text-gray-900 dark:text-gray-100">anonymous chat</h2>
+            <h2 className="font-mono font-bold text-gray-900 dark:text-gray-100">{t('anonymousChat', language)}</h2>
           </div>
           <button
             onClick={() => { disconnect(); setView('feed'); }}
@@ -313,15 +329,15 @@ export function ChatWindow({ onClose }: ChatWindowProps) {
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto p-4 text-xs font-mono text-gray-600 dark:text-gray-300 flex items-center justify-between">
-        <span>online: {onlineCount}</span>
+      <div className="w-full max-w-2xl mx-auto px-2 sm:px-4 py-4 text-xs font-mono text-gray-600 dark:text-gray-300 flex items-center justify-between">
+        <span>{t('online', language)}: {onlineCount}</span>
         <span className={connectionStatus === 'connected' ? 'text-green-600' : connectionStatus === 'connecting' ? 'text-amber-600' : 'text-gray-500'}>
-          {connectionStatus}
+          {t(connectionStatus, language)}
         </span>
       </div>
 
       {typingText && (
-        <div className="max-w-2xl mx-auto px-4 py-1 text-xs font-mono text-gray-500 dark:text-gray-400">{typingText}</div>
+        <div className="w-full max-w-2xl mx-auto px-2 sm:px-4 py-1 text-xs font-mono text-gray-500 dark:text-gray-400">{typingText}</div>
       )}
 
       <div className="max-w-2xl mx-auto flex-1 overflow-y-auto p-4 space-y-2 relative">
@@ -335,8 +351,8 @@ export function ChatWindow({ onClose }: ChatWindowProps) {
 
         {messages.length === 0 ? (
           <div className="text-center text-gray-500 dark:text-gray-400 font-mono text-sm mt-8">
-            <p>no messages yet</p>
-            <p className="text-xs mt-1">find a peer to start chatting</p>
+            <p>{t('noMessagesYet', language)}</p>
+            <p className="text-xs mt-1">{t('findPeerToStartChatting', language)}</p>
           </div>
         ) : (
           messages.map((message) => (
@@ -369,32 +385,32 @@ export function ChatWindow({ onClose }: ChatWindowProps) {
               className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white py-2 px-4 rounded-md font-mono text-sm hover:bg-gray-800 transition-colors"
             >
               <Shuffle size={16} />
-              find random peer
+              {t('findRandomPeer', language)}
             </button>
           </>
         ) : connectionStatus === 'connecting' ? (
           <div className="text-center font-mono text-sm text-gray-500 dark:text-gray-400">
-            connecting...
+            {t('connecting', language)}
           </div>
         ) : (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-green-600 font-mono text-xs">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                connected anonymously {roomId ? `(${roomId})` : ''}
+                {t('connected', language)} {t('anonymously', language)} {roomId ? `(${roomId})` : ''}
               </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={findNewPair}
                   className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 font-mono text-xs transition-colors"
                 >
-                  find new pair
+                  {t('findNewPair', language)}
                 </button>
                 <button
                   onClick={disconnect}
                   className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 font-mono text-xs transition-colors"
                 >
-                  disconnect
+                  {t('disconnect', language)}
                 </button>
               </div>
             </div>
@@ -412,7 +428,7 @@ export function ChatWindow({ onClose }: ChatWindowProps) {
                 value={inputText}
                 onChange={(e) => onInputChange(e.target.value)}
                 onBlur={() => { if (peerRoom) { try { peerRoom.typing.stop(); } catch {} } }}
-                placeholder="type anonymously..."
+                placeholder={t('typeAnonymously', language)}
                 className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
                 maxLength={200}
               />
