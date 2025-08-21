@@ -11,6 +11,9 @@ interface NavigationContextValue {
   setShowChat: (v: boolean) => void;
   chatActive: boolean;
   setChatActive: (v: boolean) => void;
+  currentRoom: string | null;
+  setCurrentRoom: (r: string | null) => void;
+  clearRoom: () => void;
 }
 
 const NavigationContext = createContext<NavigationContextValue | null>(null);
@@ -20,10 +23,11 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
   const [profileUsername, setProfileUsername] = useState<string | null>(null);
   const [showChat, setShowChat] = useState(false);
   const [chatActive, setChatActive] = useState(false);
+  const [currentRoom, setCurrentRoom] = useState<string | null>(null);
 
   const value = useMemo(
-    () => ({ view, setView, profileUsername, setProfileUsername, showChat, setShowChat, chatActive, setChatActive }),
-    [view, profileUsername, showChat, chatActive]
+    () => ({ view, setView, profileUsername, setProfileUsername, showChat, setShowChat, chatActive, setChatActive, currentRoom, setCurrentRoom, clearRoom: () => setCurrentRoom(null) }),
+    [view, profileUsername, showChat, chatActive, currentRoom]
   );
   return createElement(NavigationContext.Provider, { value }, children);
 }

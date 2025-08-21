@@ -26,6 +26,7 @@ export interface Translations {
   invite: string;
   admin: string;
   settings: string;
+  mentions: string;
   
   // Feed
   noiseGarden: string;
@@ -272,6 +273,7 @@ export const translations: Record<'en' | 'tr', Translations> = {
     invite: 'invite',
     admin: 'admin',
     settings: 'settings',
+    mentions: 'mentions',
     
     // Feed
     noiseGarden: 'noise.garden',
@@ -517,6 +519,7 @@ export const translations: Record<'en' | 'tr', Translations> = {
     invite: 'davet',
     admin: 'yönetici',
     settings: 'ayarlar',
+    mentions: 'etiketler',
     
     // Feed
     noiseGarden: 'noise.garden',

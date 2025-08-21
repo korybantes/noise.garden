@@ -1,16 +1,19 @@
-import { useState } from 'react';
-import { MessageCircle, Share2, Trash2, Flag, Clock, Lock, Repeat2, ShieldAlert, ShieldCheck, Link2 } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { MessageCircle, Share2, Flag, Trash2, MoreHorizontal, Link2, Lock, ShieldCheck, ShieldAlert, Repeat2, Clock } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { Post as PostType, deletePost } from '../lib/database';
+import { Post as PostType, deletePost, repostPost, flagPost, getAcceptedMentionsForPost, getPostById } from '../lib/database';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigation } from '../hooks/useNavigation';
 import { RepostModal } from './RepostModal';
 import { PostFlag } from './PostFlag';
-import { PopupThread } from './PopupThread';
 import { DoNotReplyToggle } from './DoNotReplyToggle';
 import { InstagramPostGenerator } from './InstagramPostGenerator';
+import { PostComposer } from './PostComposer';
 import { t } from '../lib/translations';
 import { useLanguage } from '../hooks/useLanguage';
+import { ReplyThread } from './ReplyThread';
+import { Poll } from './Poll';
+import { WhisperBadge } from './WhisperBadge';
 
 interface PostProps {
   post: PostType;
@@ -19,18 +22,12 @@ interface PostProps {
   onDeleted?: (postId: string) => void;
   onReposted?: () => void;
   isReply?: boolean;
+  inlineComposer?: boolean; // when true, open composer inside this component; otherwise delegate to parent
 }
 
-function linkifyHashtags(text: string): JSX.Element[] {
-  // First, escape any HTML to prevent XSS and display issues
-  const escapedText = text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#x27;');
-    
-  const parts = escapedText.split(/(#[\p{L}\p{N}_-]+)/u);
+function linkifyHashtags(text: string, setView: (view: any) => void): JSX.Element[] {
+  // React escapes text content automatically; split by hashtags without additional escaping
+  const parts = text.split(/(#[\p{L}\p{N}_-]+)/u);
   return parts.map((part, idx) => {
     if (part.startsWith('#') && part.length > 1) {
       const tag = part;
@@ -49,14 +46,101 @@ function linkifyHashtags(text: string): JSX.Element[] {
   });
 }
 
-export function Post({ post, onReply, onViewReplies, onDeleted, onReposted, isReply = false }: PostProps) {
+function renderPostContent(content: string, mentions: string[] = [], setProfileUsername: (username: string) => void, setView: (view: any) => void): JSX.Element {
+  // Split by mentions first, then by hashtags
+  let parts = [content];
+  
+  // Replace mentions with placeholders
+  mentions.forEach((username, index) => {
+    const newParts: string[] = [];
+    parts.forEach(part => {
+      const split = part.split(`@${username}`);
+      split.forEach((subPart, subIndex) => {
+        if (subIndex > 0) {
+          newParts.push(`__MENTION_${index}__`);
+        }
+        if (subPart) {
+          newParts.push(subPart);
+        }
+      });
+    });
+    parts = newParts;
+  });
+  
+  // Now process hashtags and mentions
+  const elements: JSX.Element[] = [];
+  parts.forEach((part, idx) => {
+    if (part.startsWith('__MENTION_')) {
+      const mentionIndex = parseInt(part.replace('__MENTION_', '').replace('__', ''));
+      const username = mentions[mentionIndex];
+      elements.push(
+        <button 
+          key={`mention-${idx}`} 
+          onClick={() => {
+            setProfileUsername(username);
+            setView('profile');
+          }} 
+          className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+        >
+          @{username}
+        </button>
+      );
+    } else {
+      // Process hashtags in this part
+      const hashtagElements = linkifyHashtags(part, setView);
+      hashtagElements.forEach((element, elementIdx) => {
+        elements.push(
+          <span key={`${idx}-${elementIdx}`}>
+            {element}
+          </span>
+        );
+      });
+    }
+  });
+  
+  return <>{elements}</>;
+}
+
+export function Post({ post, onReply, onViewReplies, onDeleted, onReposted, isReply = false, inlineComposer = true }: PostProps) {
   const [showActions, setShowActions] = useState(false);
   const [showRepost, setShowRepost] = useState(false);
   const [showFlagModal, setShowFlagModal] = useState(false);
   const [showInstagramModal, setShowInstagramModal] = useState(false);
+  const [showReplyComposer, setShowReplyComposer] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [acceptedMentions, setAcceptedMentions] = useState<string[]>([]);
+  const [originalPost, setOriginalPost] = useState<PostType | null>(null);
   const { user } = useAuth();
   const { setView, setProfileUsername } = useNavigation();
   const { language } = useLanguage();
+
+  // Load accepted mentions for this post
+  useEffect(() => {
+    const loadMentions = async () => {
+      try {
+        const mentions = await getAcceptedMentionsForPost(post.id);
+        setAcceptedMentions(mentions.map(m => m.mentioned_username));
+      } catch (error) {
+        console.error('Failed to load mentions:', error);
+      }
+    };
+    loadMentions();
+  }, [post.id]);
+
+  // Load original post content for reposts
+  useEffect(() => {
+    const loadOriginalPost = async () => {
+      if (post.repost_of) {
+        try {
+          const original = await getPostById(post.repost_of);
+          setOriginalPost(original);
+        } catch (error) {
+          console.error('Failed to load original post:', error);
+        }
+      }
+    };
+    loadOriginalPost();
+  }, [post.repost_of]);
 
   const canDelete = !!user && (user.userId === post.user_id || user.role === 'admin' || user.role === 'moderator');
 
@@ -113,6 +197,7 @@ export function Post({ post, onReply, onViewReplies, onDeleted, onReposted, isRe
           {post.avatar_url && <img src={post.avatar_url.replace('/upload/', '/upload/f_auto,q_auto,w_64,h_64,c_fill,g_face/')} alt="avatar" className="w-6 h-6 rounded-full object-cover" />}
           <button onClick={openProfile} className="font-mono text-sm text-gray-600 dark:text-gray-300 hover:underline">@{post.username}</button>
           <RoleBadge />
+          {post.is_whisper && <WhisperBadge />}
           <span className="text-gray-300">•</span>
           <span className="text-xs font-mono text-gray-400 flex items-center gap-1"><Clock size={12} />{formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}</span>
         </div>
@@ -127,14 +212,31 @@ export function Post({ post, onReply, onViewReplies, onDeleted, onReposted, isRe
           <button onClick={openOriginal} className="inline-flex items-center gap-1 underline">
             <Link2 size={12} /> view original
           </button>
-      </div>
+        </div>
+      )}
+
+      {/* Show original post content for reposts */}
+      {post.repost_of && originalPost && (
+        <div className="mb-3 p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs font-mono text-gray-500 dark:text-gray-400">@{originalPost.username}</span>
+            <span className="text-gray-300">•</span>
+            <span className="text-xs font-mono text-gray-400">{formatDistanceToNow(new Date(originalPost.created_at), { addSuffix: true })}</span>
+          </div>
+          <div className="text-sm text-gray-700 dark:text-gray-300 font-mono">
+            {originalPost.content}
+          </div>
+        </div>
       )}
 
       {post.image_url && (
         <div className="mb-2"><img src={post.image_url.replace('/upload/', '/upload/f_auto,q_auto,w_800,c_limit/')} alt="post" className="rounded border border-gray-200 dark:border-gray-800" /></div>
       )}
 
-      <div className="font-mono text-sm text-gray-800 dark:text-gray-100 leading-relaxed mb-3 whitespace-pre-wrap">{linkifyHashtags(post.content)}</div>
+      <div className="font-mono text-sm text-gray-800 dark:text-gray-100 leading-relaxed mb-3 whitespace-pre-wrap">{renderPostContent(post.content, acceptedMentions, setProfileUsername, setView)}</div>
+
+      {/* Poll (lazy-render) */}
+      <Poll postId={post.id} />
       
       {/* Status Indicators for Community Health Features */}
       {post.is_quarantined && (
@@ -149,16 +251,16 @@ export function Post({ post, onReply, onViewReplies, onDeleted, onReposted, isRe
         </div>
       )}
       
-      {(showActions || isReply) && !isReply && (
+      {(showActions || isReply) && (
         <div className="flex items-center gap-4 text-gray-400 dark:text-gray-500">
-          <button onClick={() => onReply(post)} className="flex items-center gap-1 text-xs font-mono hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title={t('replyToThisPost', language)}><MessageCircle size={14} />{t('reply', language)}</button>
-          {post.reply_count && post.reply_count > 0 && onViewReplies && (
+          <button onClick={() => { if (inlineComposer) { setShowReplyComposer(true); } else { onReply(post); } }} className="flex items-center gap-1 text-xs font-mono hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title={t('replyToThisPost', language)}><MessageCircle size={14} />{t('reply', language)}</button>
+          {post.reply_count && post.reply_count > 0 && onViewReplies && !isReply && (
             <button onClick={() => onViewReplies(post)} className="text-xs font-mono hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title={t('viewReplies', language)}>{post.reply_count} {post.reply_count === 1 ? t('reply', language) : t('replies', language)}</button>
           )}
           <button onClick={() => setShowRepost(true)} className="flex items-center gap-1 text-xs font-mono hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title={t('repostThisContent', language)}><Repeat2 size={14} /> {t('repost', language)}</button>
           <button onClick={() => sharePostAsImage()} className="flex items-center gap-1 text-xs font-mono hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title={t('shareAsImage', language)}><Share2 size={14} /> {t('share', language)}</button>
           
-          {/* Community Health Actions - Only show when hovering */}
+          {/* Community Health Actions */}
           {user && user.userId !== post.user_id && (
             <button 
               onClick={() => setShowFlagModal(true)} 
@@ -169,29 +271,13 @@ export function Post({ post, onReply, onViewReplies, onDeleted, onReposted, isRe
             </button>
           )}
           
-          {user && user.userId === post.user_id && (
+          {user && user.userId === post.user_id && !isReply && (
             <>
               <DoNotReplyToggle
                 postId={post.id}
                 repliesDisabled={post.replies_disabled || false}
-                onToggle={() => {
-                  // Refresh post data if needed
-                  // You can implement a refresh function here
-                }}
-              />
-              
-              {!post.parent_id && (
-                <PopupThread
-                  postId={post.id}
-                  isPopupThread={post.is_popup_thread || false}
-                  replyLimit={post.popup_reply_limit}
-                  timeLimitMinutes={post.popup_time_limit}
-                  closedAt={post.popup_closed_at}
-                  onStatusChange={() => {
-                    // Refresh post data if needed
-                  }}
+                onToggle={() => {}}
                 />
-              )}
             </>
           )}
           
@@ -199,6 +285,21 @@ export function Post({ post, onReply, onViewReplies, onDeleted, onReposted, isRe
             <button onClick={handleDelete} className="flex items-center gap-1 text-xs font-mono hover:text-red-600 dark:hover:text-red-400 transition-colors" title={user?.role === 'admin' || user?.role === 'moderator' ? t('deleteThisPostAdmin', language) : t('deleteYourPost', language)}><Trash2 size={14} /> {t('delete', language)}</button>
           )}
         </div>
+      )}
+
+      {showReplyComposer && !post.replies_disabled && (
+        <div className="mt-3">
+          <PostComposer
+            replyTo={{ id: post.id, username: post.username, content: post.content }}
+            onCancelReply={() => setShowReplyComposer(false)}
+            onPostCreated={() => { setShowReplyComposer(false); setRefreshKey(k => k + 1); }}
+          />
+        </div>
+      )}
+
+      {/* Nested replies for replies */}
+      {isReply && (
+        <div className="mt-3"><ReplyThread parent={post} refreshKey={refreshKey} /></div>
       )}
 
       {/* Community Health Features - PostActions Component */}

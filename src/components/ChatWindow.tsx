@@ -39,7 +39,15 @@ export function ChatWindow({ onClose }: ChatWindowProps) {
   const { language } = useLanguage();
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const end = messagesEndRef.current;
+    const container = end?.parentElement;
+    if (end && container) {
+      try {
+        container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+      } catch {
+        // no-op
+      }
+    }
   }, [messages]);
 
   const addMessage = (text: string, sender: 'you' | 'peer') => {
@@ -321,7 +329,7 @@ export function ChatWindow({ onClose }: ChatWindowProps) {
             <h2 className="font-mono font-bold text-gray-900 dark:text-gray-100">{t('anonymousChat', language)}</h2>
           </div>
           <button
-            onClick={() => { disconnect(); setView('feed'); }}
+            onClick={() => { disconnect(); setView('feed'); onClose?.(); }}
             className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
           >
             <X size={20} />

@@ -1,6 +1,8 @@
 import { useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import { Footer } from '../components/Footer';
 import { Shield, Hash, Timer, Zap } from 'lucide-react';
+import { setPageMetadata } from '../lib/meta';
 
 function AppPreview() {
 	return (
@@ -46,6 +48,9 @@ function AppPreview() {
 
 export default function Landing() {
   const navigate = useNavigate();
+  useEffect(() => {
+    setPageMetadata('noise.garden — privacy‑first ephemeral social', 'Invite‑only, ephemeral, privacy‑first social app.');
+  }, []);
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col">
 			<header className="sticky top-0 z-30 border-b border-gray-200/60 dark:border-gray-800/60 backdrop-blur supports-[backdrop-filter]:bg-white/60 supports-[backdrop-filter]:dark:bg-gray-900/40">

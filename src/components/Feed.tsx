@@ -169,6 +169,7 @@ export function Feed() {
             post={viewingReplies.post}
             onReply={setReplyTo}
             onDeleted={handleDeleted}
+            inlineComposer={false}
           />
 
           {/* Reply Composer */}
@@ -210,13 +211,19 @@ export function Feed() {
       <div className="w-full max-w-2xl mx-auto px-2 sm:px-4">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-xl font-mono font-bold text-gray-900 dark:text-gray-100">{t('noiseGarden', language)}</h1>
-            <p className="text-sm font-mono text-gray-500 dark:text-gray-400">{t('randomThoughtsShuffledDaily', language)}</p>
-            {currentRoom && (
-              <div className="mt-1 inline-flex items-center gap-2 text-xs font-mono text-gray-500 dark:text-gray-400">
-                <span className="inline-flex items-center gap-1"><Tag size={12} /> {t('room', language)}: {currentRoom}</span>
-                <button onClick={clearRoom} className="underline">{t('leaveRoom', language)}</button>
-              </div>
+            {currentRoom ? (
+              <>
+                <h1 className="text-xl font-mono font-bold text-gray-900 dark:text-gray-100">{currentRoom}</h1>
+                <div className="mt-1 inline-flex items-center gap-2 text-xs font-mono text-gray-500 dark:text-gray-400">
+                  <span className="inline-flex items-center gap-1"><Tag size={12} /> {t('room', language)}</span>
+                  <button onClick={clearRoom} className="px-2 py-0.5 rounded border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800">{t('leaveRoom', language)}</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h1 className="text-xl font-mono font-bold text-gray-900 dark:text-gray-100">{t('noiseGarden', language)}</h1>
+                <p className="text-sm font-mono text-gray-500 dark:text-gray-400">{t('randomThoughtsShuffledDaily', language)}</p>
+              </>
             )}
           </div>
           
@@ -267,7 +274,8 @@ export function Feed() {
                 onReply={setReplyTo}
                 onViewReplies={loadReplies}
                 onDeleted={handleDeleted}
-                  onReposted={() => loadPosts({ silent: true, reset: true })}
+                onReposted={() => loadPosts({ silent: true, reset: true })}
+                inlineComposer={false}
               />
                 {replyTo && replyTo.id === post.id && (
                   <div className="mt-3">

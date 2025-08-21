@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { X, AlertTriangle, Key, Trash2, SlidersHorizontal, Globe } from 'lucide-react';
+import { X, AlertTriangle, Key, Trash2, SlidersHorizontal, Globe, Shield } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
-import { updateUserProfile, deleteUser, updatePassword, getUserByUsername, createInviteForUser, getInviteForCreator } from '../lib/database';
+import { updateUserProfile, deleteUser, updatePassword, getUserByUsername } from '../lib/database';
 import { hashPassword, verifyPassword } from '../lib/auth';
 import { containsLink } from '../lib/validation';
 import { FeedSettings as FS, loadFeedSettings, saveFeedSettings } from '../lib/settings';
@@ -22,8 +22,7 @@ export function UserSettings({ onClose }: UserSettingsProps) {
   const [loading, setLoading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState('');
   const [bio, setBio] = useState('');
-  const [inviteCode, setInviteCode] = useState<string | null>(null);
-  const [feedSettingsOpen, setFeedSettingsOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<any>('feed');
   const [settings, setSettings] = useState<FS>(() => loadFeedSettings());
   const [mutedInput, setMutedInput] = useState('');
   const [language, setLanguage] = useState<'en' | 'tr'>(settings.language);
@@ -36,18 +35,33 @@ export function UserSettings({ onClose }: UserSettingsProps) {
         const fresh = await getUserByUsername(user.username);
         if (fresh?.avatar_url) setAvatarUrl(fresh.avatar_url);
         if (typeof fresh?.bio === 'string') setBio(fresh.bio);
-        const inv = await getInviteForCreator(user.userId);
-        if (inv?.code) setInviteCode(inv.code);
-      } catch {
-      }
+      } catch {}
     })();
   }, [user]);
 
-  useEffect(() => { saveFeedSettings(settings); }, [settings]);
+  useEffect(() => { 
+    saveFeedSettings(settings);
+    // Apply privacy settings effects
+    const p = (settings as any).privacy || {};
+    const noindex = !!p.hidePublicProfile;
+    const existing = document.querySelector('meta[name="robots"]');
+    if (noindex) {
+      if (existing) {
+        existing.setAttribute('content', 'noindex');
+      } else {
+        const m = document.createElement('meta');
+        m.name = 'robots';
+        m.content = 'noindex';
+        document.head.appendChild(m);
+      }
+    } else if (existing) {
+      existing.setAttribute('content', 'index,follow');
+    }
+  }, [settings]);
 
   const handleLanguageChange = (newLanguage: 'en' | 'tr') => {
     setLanguage(newLanguage);
-    const newSettings = { ...settings, language: newLanguage };
+    const newSettings = { ...settings, language: newLanguage } as FS;
     setSettings(newSettings);
     saveFeedSettings(newSettings);
   };
@@ -62,12 +76,6 @@ export function UserSettings({ onClose }: UserSettingsProps) {
     } catch (e) {
       setError('Failed to save profile');
     } finally { setLoading(false); }
-  };
-
-  const createInvite = async () => {
-    if (!user) return;
-    const inv = await createInviteForUser(user.userId);
-    setInviteCode(inv.code);
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -108,29 +116,23 @@ export function UserSettings({ onClose }: UserSettingsProps) {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white dark:bg-gray-900 rounded-lg max-w-md w-full p-6 border border-gray-200 dark:border-gray-800">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-mono font-bold text-gray-900 dark:text-gray-100">{t('accountSettings', currentLanguage)}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
             <X size={20} />
           </button>
         </div>
 
-        {error && (
-          <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-md p-3 mb-4">
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="text-red-600 mt-0.5" size={16} />
-              <p className="text-sm font-mono text-red-700 dark:text-red-300">{error}</p>
-            </div>
-          </div>
-        )}
-
-        <div className="space-y-4">
-          <div className="pb-4 border-b border-gray-200 dark:border-gray-800">
-            <p className="font-mono text-sm text-gray-600 dark:text-gray-400 mb-1">{t('username', currentLanguage)}</p>
-            <p className="font-mono text-gray-900 dark:text-gray-100">@{user?.username}</p>
+        {/* Tabs */}
+        <div className="flex items-center gap-2 mb-4">
+          <button onClick={() => setActiveTab('feed')} className={`px-3 py-1.5 rounded font-mono text-xs ${activeTab==='feed' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}>Feed</button>
+          <button onClick={() => setActiveTab('language')} className={`px-3 py-1.5 rounded font-mono text-xs ${activeTab==='language' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}>Language</button>
+          <button onClick={() => setActiveTab('privacy')} className={`px-3 py-1.5 rounded font-mono text-xs ${activeTab==='privacy' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}>Privacy</button>
+          <button onClick={() => setActiveTab('security')} className={`px-3 py-1.5 rounded font-mono text-xs ${activeTab==='security' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}>Security</button>
           </div>
 
-          <div className="space-y-3">
+        {/* Profile section */}
+        <div className="space-y-3 mb-4">
             <div>
               <p className="font-mono text-sm text-gray-600 dark:text-gray-400 mb-2">{t('avatar', currentLanguage)}</p>
               <div className="flex items-center gap-3">
@@ -149,30 +151,33 @@ export function UserSettings({ onClose }: UserSettingsProps) {
             </div>
           </div>
 
-          <div className="rounded-md border border-gray-200 dark:border-gray-800 p-3">
-            <div className="flex items-center justify-between">
+        {/* Tab contents */}
+        {activeTab === 'feed' && (
+          <div className="rounded-md border border-gray-200 dark:border-gray-800">
+            <div className="px-3 py-2 flex items-center justify-between">
+              <span className="flex items-center gap-2 font-mono text-sm text-gray-700 dark:text-gray-300"><SlidersHorizontal size={16} /> {t('feedSettings', currentLanguage)}</span>
+            </div>
+            <div className="p-3 space-y-3 border-t border-gray-200 dark:border-gray-800">
               <div>
-                <p className="font-mono text-sm text-gray-700 dark:text-gray-300">{t('inviteFriend', currentLanguage)}</p>
-                <p className="font-mono text-xs text-gray-500 dark:text-gray-400">{t('eachAccountHasOneInviteCode', currentLanguage)}</p>
+                <label className="font-mono text-sm text-gray-600 dark:text-gray-400">{t('mutedWordsTags', currentLanguage)}</label>
+                <div className="mt-2 flex gap-2">
+                  <input value={mutedInput} onChange={(e) => setMutedInput(e.target.value)} placeholder={t('wordOrTag', currentLanguage)} className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-900 text-sm font-mono" />
+                  <button type="button" onClick={() => { if (!mutedInput.trim()) return; setSettings(s => ({ ...(s as any), mutedWords: Array.from(new Set([...((s as any).mutedWords||[]), mutedInput.trim()])) }) as FS); setMutedInput(''); }} className="ng-btn">{t('add', currentLanguage)}</button>
+                </div>
+                {(settings as any).mutedWords?.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {(settings as any).mutedWords.map((w: string) => (
+                      <button key={w} onClick={() => setSettings(s => ({ ...(s as any), mutedWords: (s as any).mutedWords.filter((x: string) => x !== w) }) as FS)} className="text-xs font-mono px-2 py-1 rounded border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300">{w} ×</button>
+                    ))}
+                  </div>
+                )}
               </div>
-              {inviteCode ? (
-                <div className="font-mono text-sm px-2 py-1 rounded border border-gray-300 dark:border-gray-700">{inviteCode}</div>
-              ) : (
-                <button onClick={createInvite} className="ng-btn">{t('generateInvite', currentLanguage)}</button>
-              )}
             </div>
           </div>
+        )}
 
-          {/* Feed settings section */}
-          <div className="rounded-md border border-gray-200 dark:border-gray-800">
-            <button onClick={() => setFeedSettingsOpen(v => !v)} className="w-full flex items-center justify-between px-3 py-2">
-              <span className="flex items-center gap-2 font-mono text-sm text-gray-700 dark:text-gray-300"><SlidersHorizontal size={16} /> {t('feedSettings', currentLanguage)}</span>
-              <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{feedSettingsOpen ? t('hide', currentLanguage) : t('show', currentLanguage)}</span>
-            </button>
-            {feedSettingsOpen && (
-              <div className="p-3 space-y-3 border-t border-gray-200 dark:border-gray-800">
-                {/* Language Selection */}
-                <div>
+        {activeTab === 'language' && (
+          <div className="rounded-md border border-gray-200 dark:border-gray-800 p-3">
                   <label className="font-mono text-sm text-gray-600 dark:text-gray-400 flex items-center gap-2">
                     <Globe size={16} />
                     {t('language', currentLanguage)} / {t('dil', currentLanguage)}
@@ -200,33 +205,69 @@ export function UserSettings({ onClose }: UserSettingsProps) {
                     </button>
                   </div>
                 </div>
-                
-                <div>
-                  <label className="font-mono text-sm text-gray-600 dark:text-gray-400">{t('mutedWordsTags', currentLanguage)}</label>
-                  <div className="mt-2 flex gap-2">
-                    <input value={mutedInput} onChange={(e) => setMutedInput(e.target.value)} placeholder={t('wordOrTag', currentLanguage)} className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-900 text-sm font-mono" />
-                    <button type="button" onClick={() => { if (!mutedInput.trim()) return; setSettings(s => ({ ...s, mutedWords: Array.from(new Set([...(s.mutedWords||[]), mutedInput.trim()])) })); setMutedInput(''); }} className="ng-btn">{t('add', currentLanguage)}</button>
+        )}
+
+        {activeTab === 'privacy' && (
+          <div className="rounded-md border border-gray-200 dark:border-gray-800 p-3">
+            <label className="font-mono text-sm text-gray-700 dark:text-gray-300 flex items-center gap-2"><Shield size={16} /> Privacy</label>
+            <div className="mt-2 space-y-2">
+              <label className="flex items-center gap-2 text-sm font-mono text-gray-700 dark:text-gray-300">
+                <input type="checkbox" checked={!!(settings as any).privacy?.hidePublicProfile} onChange={(e) => setSettings(s => ({ ...(s as any), privacy: { ...((s as any).privacy||{}), hidePublicProfile: e.target.checked } }) as FS)} />
+                Hide profile pages from search engines
+              </label>
+              <label className="flex items-center gap-2 text-sm font-mono text-gray-700 dark:text-gray-300">
+                <input type="checkbox" checked={!!(settings as any).privacy?.defaultUnlisted} onChange={(e) => setSettings(s => ({ ...(s as any), privacy: { ...((s as any).privacy||{}), defaultUnlisted: e.target.checked } }) as FS)} />
+                New posts unlisted by default (not shown in main feed)
+              </label>
                   </div>
-                  {settings.mutedWords.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {settings.mutedWords.map((w) => (
-                        <button key={w} onClick={() => setSettings(s => ({ ...s, mutedWords: s.mutedWords.filter(x => x !== w) }))} className="text-xs font-mono px-2 py-1 rounded border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300">{w} ×</button>
-                      ))}
+            <p className="mt-2 text-xs font-mono text-gray-500 dark:text-gray-400">These preferences are applied by the app on this device.</p>
                     </div>
                   )}
-                </div>
-                <div>
-                  <label className="font-mono text-sm text-gray-600 dark:text-gray-400">{t('quietHours', currentLanguage)}</label>
-                  <div className="mt-2 flex items-center gap-2">
-                    <input type="number" min={0} max={23} value={settings.quietHours?.startHour ?? ''} onChange={(e) => setSettings(s => ({ ...s, quietHours: { startHour: Number(e.target.value||0), endHour: s.quietHours?.endHour ?? 0 } }))} placeholder={t('startHour', currentLanguage)} className="w-28 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-900 text-sm font-mono" />
-                    <span className="text-gray-500">{t('to', currentLanguage)}</span>
-                    <input type="number" min={0} max={23} value={settings.quietHours?.endHour ?? ''} onChange={(e) => setSettings(s => ({ ...s, quietHours: { startHour: s.quietHours?.startHour ?? 0, endHour: Number(e.target.value||0) } }))} placeholder={t('endHour', currentLanguage)} className="w-28 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-900 text-sm font-mono" />
-                    <button type="button" onClick={() => setSettings(s => ({ ...s, quietHours: null }))} className="px-3 py-2 rounded border border-gray-300 dark:border-gray-700 font-mono text-sm">{t('clear', currentLanguage)}</button>
-                  </div>
-                </div>
+
+        {activeTab === 'security' && (
+          <div className="rounded-md border border-gray-200 dark:border-gray-800 p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-mono text-sm text-gray-700 dark:text-gray-300">Backup codes</p>
+                <p className="font-mono text-xs text-gray-500 dark:text-gray-400">Download your one-time recovery codes</p>
               </div>
-            )}
+              <button
+                onClick={() => {
+                  try {
+                    const raw = localStorage.getItem('onboarding_backup_codes');
+                    if (!raw) { alert('No backup codes found on this device.'); return; }
+                    const codes: string[] = JSON.parse(raw);
+                    const blob = new Blob([codes.join('\n') + '\n'], { type: 'text/plain;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'ng_backup_codes.txt';
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(url);
+                  } catch {
+                    alert('Could not download backup codes.');
+                  }
+                }}
+                className="ng-btn"
+              >
+                Download
+              </button>
+            </div>
           </div>
+        )}
+
+        {/* Invite & account actions */}
+        <div className="rounded-md border border-gray-200 dark:border-gray-800 p-3 mt-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-mono text-sm text-gray-700 dark:text-gray-300">{t('inviteFriend', currentLanguage)}</p>
+              <p className="font-mono text-xs text-gray-500 dark:text-gray-400">{t('eachAccountHasOneInviteCode', currentLanguage)}</p>
+            </div>
+            <a href="/invite" className="ng-btn">{t('generateInvite', currentLanguage)}</a>
+          </div>
+        </div>
 
             {!showChangePassword ? (
             <button onClick={() => setShowChangePassword(true)} className="w-full flex items-center justify-center gap-2 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 py-2 px-4 rounded-md font-mono text-sm hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
@@ -262,7 +303,15 @@ export function UserSettings({ onClose }: UserSettingsProps) {
                 </div>
               </div>
             )}
+
+        {error && (
+          <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-md p-3 mt-3">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="text-red-600 mt-0.5" size={16} />
+              <p className="text-sm font-mono text-red-700 dark:text-red-300">{error}</p>
+            </div>
         </div>
+        )}
       </div>
     </div>
   );

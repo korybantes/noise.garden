@@ -4,6 +4,7 @@ import { getInviteForCreator, createInviteForUser, getInvitesCreatedBy, getInvit
 import { Footer } from '../components/Footer';
 import { SimpleBottomNav } from '../components/SimpleBottomNav';
 import { Home } from 'lucide-react';
+import { setPageMetadata } from '../lib/meta';
 
 export default function InvitePage() {
 	const { user } = useAuth();
@@ -11,6 +12,8 @@ export default function InvitePage() {
 	const [copied, setCopied] = useState(false);
 	const [invited, setInvited] = useState<Array<{ code: string; used_by: string | null; used_by_username: string | null }>>([]);
 	const [inviter, setInviter] = useState<{ inviter_id: string; inviter_username: string } | null>(null);
+
+	useEffect(() => { setPageMetadata('Invites — noise.garden', 'Invite-only network: share your one invite link.'); }, []);
 
 	useEffect(() => {
 		(async () => {

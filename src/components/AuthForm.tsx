@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { LogIn, UserPlus, AlertTriangle, Ban } from 'lucide-react';
+import { LogIn, UserPlus, AlertTriangle } from 'lucide-react';
 import { createUser, getUserByUsername, updateUserProfile, getInviteByCode, markInviteUsed, isUserBanned } from '../lib/database';
 import { hashPassword, verifyPassword, createToken, storeToken } from '../lib/auth';
 import { useAuth } from '../hooks/useAuth';
 import { generateBackupCode, storeBackupCodes, consumeBackupCode } from '../lib/backup';
 import { OnboardingBackupCodes } from './OnboardingBackupCodes';
+import { setPageMetadata } from '../lib/meta';
 
 function generateRandomAvatarDataUrl(seed: string): string {
 	const canvas = document.createElement('canvas');
@@ -78,6 +79,12 @@ export function AuthForm() {
   const { login } = useAuth();
 
   useEffect(() => {
+    const desc = mode === 'login' ? 'Log in to noise.garden' : mode === 'signup' ? 'Create your account on noise.garden' : 'Recover your account with a backup code';
+    const title = mode === 'login' ? 'Log in — noise.garden' : mode === 'signup' ? 'Sign up — noise.garden' : 'Recover — noise.garden';
+    setPageMetadata(title, desc);
+  }, [mode]);
+
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const inv = params.get('invite');
     if (inv) {
@@ -110,13 +117,17 @@ export function AuthForm() {
       } else {
         await import('altcha');
         const el = document.createElement('altcha-widget');
+        const setTheme = () => {
+          const dark = document.documentElement.classList.contains('dark');
+          el.setAttribute('theme', dark ? 'dark' : 'light');
+          el.style.setProperty('--altcha-color-border', dark ? '#374151' : '#d1d5db');
+          el.style.setProperty('--altcha-color-base', dark ? '#111827' : '#ffffff');
+        };
         el.setAttribute('challengeurl', '/api/altcha/challenge');
         el.setAttribute('endpoint', '/api/altcha/verify');
-        el.setAttribute('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
         el.style.setProperty('--altcha-border-radius', '6px');
         el.style.setProperty('--altcha-max-width', '100%');
-        el.style.setProperty('--altcha-color-border', document.documentElement.classList.contains('dark') ? '#374151' : '#d1d5db');
-        el.style.setProperty('--altcha-color-base', document.documentElement.classList.contains('dark') ? '#111827' : '#ffffff');
+        setTheme();
         el.id = 'altcha';
         el.addEventListener('statechange', (ev: any) => {
           if (ev?.detail?.state === 'verified') {
@@ -127,6 +138,9 @@ export function AuthForm() {
           altchaRef.current.innerHTML = '';
           altchaRef.current.appendChild(el);
         }
+        // Observe theme changes
+        const obs = new MutationObserver(() => setTheme());
+        obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
       }
     };
     mount();

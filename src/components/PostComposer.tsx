@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
-import { Send, X, Smile, Clock, MoreHorizontal } from 'lucide-react';
-import { createPost } from '../lib/database';
+import { Send, X, Smile, Clock, MoreHorizontal, Lock, ListPlus } from 'lucide-react';
+import { createPost, createPollPost, createMention } from '../lib/database';
 import { useAuth } from '../hooks/useAuth';
 import { containsLink, sanitizeLinks } from '../lib/validation';
 import { t } from '../lib/translations';
@@ -26,12 +26,16 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
 	const [content, setContent] = useState(initialContent);
   const [loading, setLoading] = useState(false);
   const [showEmojis, setShowEmojis] = useState(false);
-	const [ttl, setTtl] = useState<number>(TTL_PRESETS[4].seconds);
+	const [ttl] = useState<number>(TTL_PRESETS[4].seconds);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   const [isPopupThread, setIsPopupThread] = useState(false);
   const [popupReplyLimit, setPopupReplyLimit] = useState(10);
   const [popupTimeLimit, setPopupTimeLimit] = useState(60);
   const [repliesDisabled, setRepliesDisabled] = useState(false);
+  const [asWhisper, setAsWhisper] = useState(false);
+	const [asPoll, setAsPoll] = useState(false);
+	const [pollQuestion, setPollQuestion] = useState('');
+	const [pollOptions, setPollOptions] = useState<string[]>(['', '']);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const { user } = useAuth();
   const { language } = useLanguage();
@@ -51,15 +55,45 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-		if (!content.trim() || !user) return;
-		if (containsLink(content)) {
+		if (asPoll && replyTo) { return; }
+		if ((!content.trim() && !asPoll) || !user) return;
+		if (!replyTo && containsLink(content)) {
 			setContent(sanitizeLinks(content));
 			return;
 		}
 
     setLoading(true);
     try {
-			await createPost(
+      if (replyTo && asWhisper) {
+        // Send whisper to API
+        const response = await fetch('/api/whispers', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          },
+          body: JSON.stringify({
+            action: 'createWhisper',
+            args: { content: content.trim(), parentId: replyTo.id }
+          })
+        });
+        if (!response.ok) {
+          console.error('Failed to create whisper');
+        }
+      } else if (asPoll && !replyTo) {
+			const opts = pollOptions.map(o => o.trim()).filter(Boolean).slice(0, 5);
+			await createPollPost(
+				user.userId,
+				pollQuestion.trim() || content.trim(),
+				opts,
+				ttl,
+				null
+			);
+			setPollQuestion('');
+			setPollOptions(['','']);
+			setAsPoll(false);
+		} else {
+			const newPost = await createPost(
         user.userId, 
         content.trim(), 
         replyTo?.id, 
@@ -72,6 +106,23 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
         isPopupThread ? popupReplyLimit : undefined,
         isPopupThread ? popupTimeLimit : undefined
       );
+
+      // Check for mentions and create them
+      const mentionRegex = /@([a-zA-Z0-9_-]+)/g;
+      const mentions = content.match(mentionRegex);
+      if (mentions && newPost) {
+        for (const mention of mentions) {
+          const username = mention.slice(1); // Remove @
+          if (username !== user.username) { // Don't mention yourself
+            try {
+              await createMention(newPost.id, username, user.userId);
+            } catch (error) {
+              console.error('Failed to create mention:', error);
+            }
+          }
+        }
+      }
+      }
       setContent('');
       onPostCreated();
       onCancelReply?.();
@@ -99,7 +150,7 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
-      if (content.trim() && !loading) {
+      if ((content.trim() || asPoll) && !loading) {
         handleSubmit(e as any);
       }
     }
@@ -132,14 +183,16 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
       )}
       
       <form onSubmit={handleSubmit}>
-				<textarea ref={textareaRef} value={content} onChange={(e) => setContent(e.target.value)} placeholder={replyTo ? t('writeYourReply', language) : t('shareRandomThought', language)} className="w-full p-3 bg-transparent border-0 resize-none focus:outline-none font-mono text-sm placeholder-gray-400 dark:placeholder-gray-500 text-gray-900 dark:text-gray-100" rows={3} maxLength={280} onKeyDown={handleKeyDown} />
-        
+				{!asPoll && (
+					<textarea ref={textareaRef} value={content} onChange={(e) => setContent(e.target.value)} placeholder={replyTo ? t('writeYourReply', language) : t('shareRandomThought', language)} className="w-full p-3 bg-transparent border-0 resize-none focus:outline-none font-mono text-sm placeholder-gray-400 dark:placeholder-gray-500 text-gray-900 dark:text-gray-100" rows={3} maxLength={280} onKeyDown={handleKeyDown} />
+				)}
+
         <div className="flex items-center justify-between mt-3 relative">
           <div className="flex items-center gap-2">
             <button type="button" onClick={() => setShowEmojis(!showEmojis)} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
               <Smile size={16} />
             </button>
-            <span className="text-xs font-mono text-gray-400 dark:text-gray-500">{content.length}/280</span>
+            <span className="text-xs font-mono text-gray-400 dark:text-gray-500">{asPoll ? 'poll' : `${content.length}/280`}</span>
           </div>
           
           <div className="flex items-center gap-2">
@@ -148,21 +201,40 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
               {t('expiresIn', language)} {formatTTL(ttl)}
             </div>
             
+            {replyTo && (
+              <label className="inline-flex items-center gap-1 text-xs font-mono text-gray-600 dark:text-gray-300">
+                <input type="checkbox" checked={asWhisper} onChange={(e) => setAsWhisper(e.target.checked)} />
+                <Lock size={12} /> whisper to OP
+              </label>
+            )}
+
+				{!replyTo && (
+					<label className="inline-flex items-center gap-1 text-xs font-mono text-gray-600 dark:text-gray-300">
+						<input type="checkbox" checked={asPoll} onChange={(e) => setAsPoll(e.target.checked)} />
+						<ListPlus size={12} /> poll
+					</label>
+				)}
+            
             <button type="button" onClick={() => setShowAdvancedOptions(!showAdvancedOptions)} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
               <MoreHorizontal size={16} />
             </button>
             
-            <button type="submit" disabled={loading || !content.trim()} className="bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 p-2 rounded-md hover:bg-gray-800 dark:hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+            <button type="submit" disabled={loading || (!asPoll && !content.trim())} className="bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 p-2 rounded-md hover:bg-gray-800 dark:hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
               <Send size={16} />
             </button>
           </div>
         </div>
         
-        {showEmojis && (
+        {showEmojis && !asPoll && (
           <div className="absolute bottom-full left-0 mb-2 p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg z-10">
             <div className="grid grid-cols-10 gap-1">
               {COMMON_EMOJIS.map((emoji) => (
-                <button key={emoji} onClick={() => insertEmoji(emoji)} className="w-6 h-6 text-lg hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors">
+                <button 
+                  key={emoji} 
+                  onClick={() => insertEmoji(emoji)} 
+                  className="w-6 h-6 text-lg hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors cursor-pointer"
+                  type="button"
+                >
                   {emoji}
                 </button>
               ))}
@@ -170,7 +242,7 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
           </div>
         )}
         
-        {showAdvancedOptions && (
+        {showAdvancedOptions && !asPoll && (
           <div className="mt-4 p-3 border border-gray-200 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800">
             <h3 className="text-sm font-mono font-semibold text-gray-900 dark:text-gray-100 mb-3">{t('advancedOptions', language)}</h3>
             
@@ -196,6 +268,29 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
               <div className="flex items-center gap-2">
                 <input type="checkbox" id="repliesDisabled" checked={repliesDisabled} onChange={(e) => setRepliesDisabled(e.target.checked)} className="rounded" />
                 <label htmlFor="repliesDisabled" className="text-sm font-mono text-gray-700 dark:text-gray-300">{t('disableReplies', language)}</label>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {asPoll && !replyTo && (
+          <div className="mt-4 p-3 border border-gray-200 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800">
+            <h3 className="text-sm font-mono font-semibold text-gray-900 dark:text-gray-100 mb-3">Create a poll</h3>
+            <div className="space-y-2">
+              <input value={pollQuestion} onChange={(e) => setPollQuestion(e.target.value)} placeholder="Poll question" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-900 text-sm font-mono" maxLength={120} />
+              <div className="space-y-2">
+                {pollOptions.map((opt, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input value={opt} onChange={(e) => setPollOptions(prev => prev.map((p, idx) => idx===i ? e.target.value : p))} placeholder={`Option ${i+1}`} className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-900 text-sm font-mono" maxLength={60} />
+                    {pollOptions.length > 2 && (
+                      <button type="button" onClick={() => setPollOptions(prev => prev.filter((_, idx) => idx !== i))} className="text-xs font-mono text-gray-600 dark:text-gray-400">remove</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center gap-2 mt-2">
+                <button type="button" disabled={pollOptions.length >= 5} onClick={() => setPollOptions(prev => [...prev, ''])} className="ng-btn">add option</button>
+                <span className="text-xs font-mono text-gray-500 dark:text-gray-400">up to 5 options</span>
               </div>
             </div>
           </div>

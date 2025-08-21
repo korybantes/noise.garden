@@ -1,6 +1,6 @@
 import { Footer } from '../components/Footer';
 import { SimpleBottomNav } from '../components/SimpleBottomNav';
-import { Home, Shield, Users, Clock, Hash, MessageSquare, Download, Eye, Settings, Heart, Share2, UserPlus, Lock, Globe, Zap, Palette } from 'lucide-react';
+import { Home, Shield, Hash, MessageSquare, Download, Settings, Heart, Share2, UserPlus, Globe } from 'lucide-react';
 
 export default function Docs() {
 	return (
@@ -205,43 +205,6 @@ export default function Docs() {
 								<li>Invite relationships</li>
 								<li>Account creation date</li>
 							</ul>
-						</div>
-					</section>
-
-					<section className="ng-card p-6">
-						<div className="flex items-center gap-2 mb-4">
-							<Zap className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-							<h2 className="font-mono text-xl font-semibold text-gray-900 dark:text-gray-100">technical details</h2>
-						</div>
-						<div className="space-y-4 font-mono text-sm text-gray-700 dark:text-gray-300">
-							<div>
-								<h3 className="font-semibold mb-2">architecture</h3>
-								<ul className="list-disc pl-6 space-y-1">
-									<li><strong>Frontend:</strong> React + Vite + TypeScript</li>
-									<li><strong>Backend:</strong> Vercel Serverless Functions</li>
-									<li><strong>Database:</strong> Neon PostgreSQL</li>
-									<li><strong>Styling:</strong> Tailwind CSS + custom design system</li>
-								</ul>
-							</div>
-							<div>
-								<h3 className="font-semibold mb-2">features</h3>
-								<ul className="list-disc pl-6 space-y-1">
-									<li>Hash‑based client‑side routing</li>
-									<li>Real‑time feed updates</li>
-									<li>Responsive mobile design</li>
-									<li>Dark/light theme support</li>
-									<li>Progressive Web App ready</li>
-								</ul>
-							</div>
-							<div>
-								<h3 className="font-semibold mb-2">performance</h3>
-								<ul className="list-disc pl-6 space-y-1">
-									<li>Code splitting for optimal loading</li>
-									<li>Client‑side image generation</li>
-									<li>Minimal bundle size</li>
-									<li>Fast serverless responses</li>
-								</ul>
-							</div>
 						</div>
 					</section>
 
