@@ -1,6 +1,6 @@
 import { createContext, useContext, useMemo, useState, ReactNode, createElement } from 'react';
 
-type View = 'feed' | 'profile' | 'chat';
+type View = 'feed' | 'profile' | 'chat' | 'invite' | 'settings';
 
 interface NavigationContextValue {
   view: View;

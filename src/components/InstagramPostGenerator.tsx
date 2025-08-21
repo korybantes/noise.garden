@@ -346,7 +346,11 @@ export function InstagramPostGenerator({ post, onClose }: InstagramPostGenerator
 								</span>
 							</div>
 
-							<div className="text-white leading-relaxed font-medium text-center flex-1 flex items-center justify-center px-10" style={{ fontSize: `${fontSize}px`, color: '#ffffff', textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>
+							<div className="text-white leading-relaxed font-medium text-center flex-1 flex items-center justify-center px-10" style={{ 
+								fontSize: `${Math.round(fontSize * 2.5)}px`, 
+								color: '#ffffff', 
+								textShadow: '0 2px 4px rgba(0,0,0,0.3)' 
+							}}>
 								{post.content}
 							</div>
 

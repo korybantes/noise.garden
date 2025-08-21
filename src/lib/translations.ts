@@ -508,7 +508,7 @@ export const translations: Record<'en' | 'tr', Translations> = {
     success: 'başarılı',
     warning: 'uyarı',
     info: 'bilgi',
-    english: 'İngilizce',
+    english: 'English',
     turkish: 'Türkçe',
     dil: 'Dil',
     

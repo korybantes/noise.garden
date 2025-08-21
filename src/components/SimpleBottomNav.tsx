@@ -28,8 +28,8 @@ export function SimpleBottomNav() {
           chat
         </a>
         <a
-          href="/invite"
-          className="flex flex-col items-center text-xs text-gray-900 dark:text-white"
+          href="/app#invite"
+          className="flex flex-col items-center text-xs text-gray-600 dark:text-gray-300"
         >
           <Ticket size={18} />
           invite

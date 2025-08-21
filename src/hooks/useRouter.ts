@@ -3,6 +3,8 @@ import { createContext, useContext, useEffect, useMemo, useState, ReactNode, cre
 export type Route =
   | { name: 'feed' }
   | { name: 'profile' }
+  | { name: 'chat' }
+  | { name: 'invite' }
   | { name: 'post'; params: { id: string } };
 
 function parseHash(hash: string): Route {
@@ -25,6 +27,17 @@ function parseHash(hash: string): Route {
     return { name: 'post', params: { id: parts[1] } };
   }
 
+  // Handle other views
+  if (parts[0] === 'profile') {
+    return { name: 'profile' };
+  }
+  if (parts[0] === 'chat') {
+    return { name: 'chat' };
+  }
+  if (parts[0] === 'invite') {
+    return { name: 'invite' };
+  }
+
   return { name: 'feed' };
 }
 
@@ -32,6 +45,7 @@ interface RouterContextValue {
   route: Route;
   navigateToPost: (id: string) => void;
   navigateToFeed: () => void;
+  navigateToView: (view: 'feed' | 'profile' | 'chat' | 'invite') => void;
 }
 
 const RouterContext = createContext<RouterContextValue | null>(null);
@@ -52,6 +66,13 @@ export function RouterProvider({ children }: { children: ReactNode }) {
     },
     navigateToFeed: () => {
       window.location.hash = '';
+    },
+    navigateToView: (view: 'feed' | 'profile' | 'chat' | 'invite') => {
+      if (view === 'feed') {
+        window.location.hash = '';
+      } else {
+        window.location.hash = `#/${view}`;
+      }
     },
   }), [route]);
 

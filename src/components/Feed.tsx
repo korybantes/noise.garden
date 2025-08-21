@@ -5,6 +5,7 @@ import { Post } from './Post';
 import { PostComposer } from './PostComposer';
 import { loadFeedSettings, contentMatchesMuted, isWithinQuietHours } from '../lib/settings';
 import { useRouter } from '../hooks/useRouter';
+import { useNavigation } from '../hooks/useNavigation';
 import { Select } from './ui/Select';
 import { t } from '../lib/translations';
 import { useLanguage } from '../hooks/useLanguage';
@@ -21,24 +22,12 @@ export function Feed() {
   const [settingsVersion, setSettingsVersion] = useState(0);
   const { route } = useRouter();
   const { language } = useLanguage();
+  const { currentRoom, clearRoom } = useNavigation();
 
   const settings = useMemo(() => loadFeedSettings(), [settingsVersion]);
 
-  const currentRoom = useMemo(() => {
-    try {
-      const url = new URL(window.location.href);
-      const tag = url.searchParams.get('room');
-      return tag ? tag.replace(/^#*/, '#') : '';
-    } catch { return ''; }
-  }, [settingsVersion]);
-
-  const clearRoom = () => {
-    try {
-      const url = new URL(window.location.href);
-      url.searchParams.delete('room');
-      window.history.pushState({}, '', url.toString());
-      window.dispatchEvent(new PopStateEvent('popstate'));
-    } catch {}
+  const clearRoomFilter = () => {
+    clearRoom();
   };
 
   const loadPosts = async (opts?: { silent?: boolean; reset?: boolean }) => {
@@ -146,7 +135,7 @@ export function Feed() {
 
   if (viewingReplies) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-20 md:pb-0">
         <div className="w-full max-w-2xl mx-auto px-2 sm:px-4">
           <div className="flex items-center gap-4 mb-6">
             <button
@@ -207,7 +196,7 @@ export function Feed() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-20 md:pb-0">
       <div className="w-full max-w-2xl mx-auto px-2 sm:px-4">
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -216,7 +205,7 @@ export function Feed() {
                 <h1 className="text-xl font-mono font-bold text-gray-900 dark:text-gray-100">{currentRoom}</h1>
                 <div className="mt-1 inline-flex items-center gap-2 text-xs font-mono text-gray-500 dark:text-gray-400">
                   <span className="inline-flex items-center gap-1"><Tag size={12} /> {t('room', language)}</span>
-                  <button onClick={clearRoom} className="px-2 py-0.5 rounded border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800">{t('leaveRoom', language)}</button>
+                  <button onClick={clearRoomFilter} className="px-2 py-0.5 rounded border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800">{t('leaveRoom', language)}</button>
                 </div>
               </>
             ) : (

@@ -57,6 +57,7 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
     e.preventDefault();
 		if (asPoll && replyTo) { return; }
 		if ((!content.trim() && !asPoll) || !user) return;
+		// Only block links in new posts, not in replies (chat)
 		if (!replyTo && containsLink(content)) {
 			setContent(sanitizeLinks(content));
 			return;
@@ -226,12 +227,15 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
         </div>
         
         {showEmojis && !asPoll && (
-          <div className="absolute bottom-full left-0 mb-2 p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg z-10">
+          <div className="absolute bottom-full left-0 mb-2 p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg z-50">
             <div className="grid grid-cols-10 gap-1">
               {COMMON_EMOJIS.map((emoji) => (
                 <button 
                   key={emoji} 
-                  onClick={() => insertEmoji(emoji)} 
+                  onClick={() => {
+                    insertEmoji(emoji);
+                    setShowEmojis(false);
+                  }} 
                   className="w-6 h-6 text-lg hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors cursor-pointer"
                   type="button"
                 >

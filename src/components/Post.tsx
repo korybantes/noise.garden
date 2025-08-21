@@ -1,12 +1,11 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { MessageCircle, Share2, Flag, Trash2, MoreHorizontal, Link2, Lock, ShieldCheck, ShieldAlert, Repeat2, Clock } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { Post as PostType, deletePost, repostPost, flagPost, getAcceptedMentionsForPost, getPostById } from '../lib/database';
+import { Post as PostType, deletePost, getAcceptedMentionsForPost, getPostById } from '../lib/database';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigation } from '../hooks/useNavigation';
 import { RepostModal } from './RepostModal';
 import { PostFlag } from './PostFlag';
-import { DoNotReplyToggle } from './DoNotReplyToggle';
 import { InstagramPostGenerator } from './InstagramPostGenerator';
 import { PostComposer } from './PostComposer';
 import { t } from '../lib/translations';
@@ -25,7 +24,7 @@ interface PostProps {
   inlineComposer?: boolean; // when true, open composer inside this component; otherwise delegate to parent
 }
 
-function linkifyHashtags(text: string, setView: (view: any) => void): JSX.Element[] {
+function linkifyHashtags(text: string, setView: (view: any) => void, setCurrentRoom: (room: string | null) => void): JSX.Element[] {
   // React escapes text content automatically; split by hashtags without additional escaping
   const parts = text.split(/(#[\p{L}\p{N}_-]+)/u);
   return parts.map((part, idx) => {
@@ -33,10 +32,8 @@ function linkifyHashtags(text: string, setView: (view: any) => void): JSX.Elemen
       const tag = part;
       return (
         <button key={idx} onClick={() => {
-          const url = new URL(window.location.href);
-          url.searchParams.set('room', tag);
-          window.history.pushState({}, '', url.toString());
-          window.dispatchEvent(new PopStateEvent('popstate'));
+          setCurrentRoom(tag);
+          setView('chat');
         }} className="underline decoration-dotted">
           {tag}
         </button>
@@ -46,7 +43,7 @@ function linkifyHashtags(text: string, setView: (view: any) => void): JSX.Elemen
   });
 }
 
-function renderPostContent(content: string, mentions: string[] = [], setProfileUsername: (username: string) => void, setView: (view: any) => void): JSX.Element {
+function renderPostContent(content: string, mentions: string[] = [], setProfileUsername: (username: string) => void, setView: (view: any) => void, setCurrentRoom: (room: string | null) => void): JSX.Element {
   // Split by mentions first, then by hashtags
   let parts = [content];
   
@@ -87,7 +84,7 @@ function renderPostContent(content: string, mentions: string[] = [], setProfileU
       );
     } else {
       // Process hashtags in this part
-      const hashtagElements = linkifyHashtags(part, setView);
+      const hashtagElements = linkifyHashtags(part, setView, setCurrentRoom);
       hashtagElements.forEach((element, elementIdx) => {
         elements.push(
           <span key={`${idx}-${elementIdx}`}>
@@ -107,11 +104,13 @@ export function Post({ post, onReply, onViewReplies, onDeleted, onReposted, isRe
   const [showFlagModal, setShowFlagModal] = useState(false);
   const [showInstagramModal, setShowInstagramModal] = useState(false);
   const [showReplyComposer, setShowReplyComposer] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [acceptedMentions, setAcceptedMentions] = useState<string[]>([]);
   const [originalPost, setOriginalPost] = useState<PostType | null>(null);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
-  const { setView, setProfileUsername } = useNavigation();
+  const { setView, setProfileUsername, setCurrentRoom } = useNavigation();
   const { language } = useLanguage();
 
   // Load accepted mentions for this post
@@ -126,6 +125,20 @@ export function Post({ post, onReply, onViewReplies, onDeleted, onReposted, isRe
     };
     loadMentions();
   }, [post.id]);
+
+  // Close more menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
+        setShowMoreMenu(false);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, []);
 
   // Load original post content for reposts
   useEffect(() => {
@@ -233,7 +246,7 @@ export function Post({ post, onReply, onViewReplies, onDeleted, onReposted, isRe
         <div className="mb-2"><img src={post.image_url.replace('/upload/', '/upload/f_auto,q_auto,w_800,c_limit/')} alt="post" className="rounded border border-gray-200 dark:border-gray-800" /></div>
       )}
 
-      <div className="font-mono text-sm text-gray-800 dark:text-gray-100 leading-relaxed mb-3 whitespace-pre-wrap">{renderPostContent(post.content, acceptedMentions, setProfileUsername, setView)}</div>
+      <div className="font-mono text-sm text-gray-800 dark:text-gray-100 leading-relaxed mb-3 whitespace-pre-wrap">{renderPostContent(post.content, acceptedMentions, setProfileUsername, setView, setCurrentRoom)}</div>
 
       {/* Poll (lazy-render) */}
       <Poll postId={post.id} />
@@ -260,30 +273,53 @@ export function Post({ post, onReply, onViewReplies, onDeleted, onReposted, isRe
           <button onClick={() => setShowRepost(true)} className="flex items-center gap-1 text-xs font-mono hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title={t('repostThisContent', language)}><Repeat2 size={14} /> {t('repost', language)}</button>
           <button onClick={() => sharePostAsImage()} className="flex items-center gap-1 text-xs font-mono hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title={t('shareAsImage', language)}><Share2 size={14} /> {t('share', language)}</button>
           
-          {/* Community Health Actions */}
-          {user && user.userId !== post.user_id && (
+          {/* More Actions Menu */}
+          <div className="relative" ref={moreMenuRef}>
             <button 
-              onClick={() => setShowFlagModal(true)} 
-              className="flex items-center gap-1 text-xs font-mono hover:text-red-500 dark:hover:text-red-400 transition-colors" 
-              title={t('flagThisPost', language)}
+              onClick={() => setShowMoreMenu(!showMoreMenu)}
+              className="flex items-center gap-1 text-xs font-mono hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              title="more actions"
             >
-              <Flag size={14} /> {t('flag', language)}
+              <MoreHorizontal size={14} />
             </button>
-          )}
-          
-          {user && user.userId === post.user_id && !isReply && (
-            <>
-              <DoNotReplyToggle
-                postId={post.id}
-                repliesDisabled={post.replies_disabled || false}
-                onToggle={() => {}}
-                />
-            </>
-          )}
-          
-          {canDelete && (
-            <button onClick={handleDelete} className="flex items-center gap-1 text-xs font-mono hover:text-red-600 dark:hover:text-red-400 transition-colors" title={user?.role === 'admin' || user?.role === 'moderator' ? t('deleteThisPostAdmin', language) : t('deleteYourPost', language)}><Trash2 size={14} /> {t('delete', language)}</button>
-          )}
+            
+            {showMoreMenu && (
+              <div className="absolute bottom-full right-0 mb-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10">
+                <div className="py-1">
+                  {/* Community Health Actions */}
+                  {user && user.userId !== post.user_id && (
+                    <button 
+                      onClick={() => { setShowFlagModal(true); setShowMoreMenu(false); }} 
+                      className="w-full text-left px-4 py-2 text-sm font-mono text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
+                    >
+                      <Flag size={14} />
+                      {t('flag', language)}
+                    </button>
+                  )}
+                  
+                  {user && user.userId === post.user_id && !isReply && (
+                    <button 
+                      onClick={() => { setShowMoreMenu(false); }}
+                      className="w-full text-left px-4 py-2 text-sm font-mono text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
+                    >
+                      <Lock size={14} />
+                      toggle replies
+                    </button>
+                  )}
+                  
+                  {canDelete && (
+                    <button 
+                      onClick={() => { handleDelete(); setShowMoreMenu(false); }} 
+                      className="w-full text-left px-4 py-2 text-sm font-mono text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
+                    >
+                      <Trash2 size={14} />
+                      {t('delete', language)}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

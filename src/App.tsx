@@ -8,18 +8,34 @@ import { NavigationProvider, useNavigation } from './hooks/useNavigation';
 import { BottomNav } from './components/BottomNav';
 import { Profile } from './components/Profile';
 import { ChatWindow } from './components/ChatWindow';
+import { InvitePage } from './components/InvitePage';
 import { Footer } from './components/Footer';
-import { RouterProvider } from './hooks/useRouter';
+import { RouterProvider, useRouter } from './hooks/useRouter';
 import { OnboardingBackupCodes } from './components/OnboardingBackupCodes';
+import { UserSettings } from './components/UserSettings';
 
 function AppContent() {
   const { user, isLoading } = useAuth();
-  const { view } = useNavigation();
+  const { view, setView } = useNavigation();
+  const { route } = useRouter();
   const [onboardingCodes, setOnboardingCodes] = useState<string[] | null>(null);
 
   useEffect(() => {
     initDatabase().catch(console.error);
   }, []);
+
+  // Sync route with view
+  useEffect(() => {
+    if (route.name === 'feed') {
+      setView('feed');
+    } else if (route.name === 'profile') {
+      setView('profile');
+    } else if (route.name === 'chat') {
+      setView('chat');
+    } else if (route.name === 'invite') {
+      setView('invite');
+    }
+  }, [route.name, setView]);
 
   useEffect(() => {
     if (!user) return;
@@ -52,10 +68,14 @@ function AppContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-16 md:pb-0 flex flex-col">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-20 md:pb-0 flex flex-col">
       <Header />
       <div className="flex-1">
-        {view === 'feed' ? <Feed /> : view === 'profile' ? <Profile /> : <ChatWindow onClose={() => {}} />}
+        {view === 'feed' ? <Feed /> : 
+         view === 'profile' ? <Profile /> : 
+         view === 'chat' ? <ChatWindow onClose={() => {}} /> :
+         view === 'invite' ? <InvitePage /> :
+         view === 'settings' ? <UserSettings /> : <Feed />}
       </div>
       <Footer />
       <BottomNav />

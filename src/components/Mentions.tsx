@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
-import { AtSign, Check, X, Clock, User } from 'lucide-react';
+import { AtSign, Check, X, Clock, User, Shield } from 'lucide-react';
 import { Mention, getPendingMentions, respondToMention, getPostById } from '../lib/database';
 import { useAuth } from '../hooks/useAuth';
-import { t } from '../lib/translations';
-import { useLanguage } from '../hooks/useLanguage';
+import { loadFeedSettings } from '../lib/settings';
 
 interface MentionsProps {
   onClose: () => void;
@@ -15,12 +14,23 @@ export function Mentions({ onClose, onMentionsUpdated }: MentionsProps) {
   const [mentions, setMentions] = useState<Mention[]>([]);
   const [loading, setLoading] = useState(true);
   const [responding, setResponding] = useState<string | null>(null);
-  const { language } = useLanguage();
+  const [mentionsDisabled, setMentionsDisabled] = useState(false);
 
   useEffect(() => {
     if (!user) return;
+    checkMentionsPrivacy();
     loadMentions();
   }, [user]);
+
+  const checkMentionsPrivacy = () => {
+    try {
+      const settings = loadFeedSettings();
+      const privacy = (settings as any).privacy || {};
+      setMentionsDisabled(!!privacy.disableMentions);
+    } catch (error) {
+      console.error('Failed to load privacy settings:', error);
+    }
+  };
 
   const loadMentions = async () => {
     if (!user) return;
@@ -56,6 +66,35 @@ export function Mentions({ onClose, onMentionsUpdated }: MentionsProps) {
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-gray-100 mx-auto"></div>
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">Loading mentions...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show disabled mentions message if user has disabled mentions
+  if (mentionsDisabled) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="bg-white dark:bg-gray-900 rounded-lg max-w-md w-full p-6 border border-gray-200 dark:border-gray-800">
+          <div className="text-center">
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <Shield size={24} className="text-gray-400" />
+              <AtSign size={24} className="text-gray-400" />
+            </div>
+            <h2 className="text-lg font-mono font-bold text-gray-900 dark:text-gray-100 mb-2">Mentions Disabled</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              You have disabled @mentions in your privacy settings. Others cannot mention you, and you won't receive mention notifications.
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-500 mb-4">
+              To enable mentions, go to Settings → Privacy and uncheck "Disable @mentions"
+            </p>
+            <button
+              onClick={onClose}
+              className="px-4 py-2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-md font-mono text-sm hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors"
+            >
+              Close
+            </button>
           </div>
         </div>
       </div>

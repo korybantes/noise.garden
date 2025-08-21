@@ -3,6 +3,7 @@ import { useNavigation } from '../hooks/useNavigation';
 import { useAuth } from '../hooks/useAuth';
 import { useState } from 'react';
 import { AdminPanel } from './AdminPanel';
+import { ModeratorPanel } from './ModeratorPanel';
 import { t } from '../lib/translations';
 import { useLanguage } from '../hooks/useLanguage';
 
@@ -10,6 +11,7 @@ export function BottomNav() {
   const { view, setView, chatActive } = useNavigation();
   const { user } = useAuth();
   const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [showModeratorPanel, setShowModeratorPanel] = useState(false);
   const { language } = useLanguage();
 
   return (
@@ -39,19 +41,19 @@ export function BottomNav() {
             {t('chat', language)}
           </button>
           <button
-            onClick={() => { window.location.href = '/invite'; }}
-            className="flex flex-col items-center text-xs text-gray-600 dark:text-gray-300"
+            onClick={() => setView('invite')}
+            className={`flex flex-col items-center text-xs ${view === 'invite' ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-300'}`}
           >
             <Ticket size={18} />
             {t('invite', language)}
           </button>
           {user && ['admin', 'moderator'].includes(user.role) && (
             <button
-              onClick={() => setShowAdminPanel(true)}
+              onClick={() => user.role === 'admin' ? setShowAdminPanel(true) : setShowModeratorPanel(true)}
               className="flex flex-col items-center text-xs text-gray-600 dark:text-gray-300"
             >
               <Shield size={18} />
-              {t('admin', language)}
+              {user.role === 'admin' ? t('admin', language) : (language === 'tr' ? 'moderatör' : 'moderator')}
             </button>
           )}
         </div>
@@ -59,6 +61,10 @@ export function BottomNav() {
 
       {showAdminPanel && (
         <AdminPanel onClose={() => setShowAdminPanel(false)} />
+      )}
+
+      {showModeratorPanel && (
+        <ModeratorPanel onClose={() => setShowModeratorPanel(false)} />
       )}
     </>
   );
