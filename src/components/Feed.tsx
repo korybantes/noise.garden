@@ -80,7 +80,7 @@ export function Feed() {
       const newOffset = opts?.reset ? 0 : offset;
       const newPosts = await getRandomPosts(20, newOffset, sortBy);
       if (opts?.reset) {
-        setPosts(newPosts);
+      setPosts(newPosts);
         setOffset(20);
         // Don't persist cache when refreshing to ensure fresh data
       } else {
@@ -327,12 +327,12 @@ export function Feed() {
                     : 'text-gray-600 dark:text-gray-400'
                   : 'text-gray-400 dark:text-gray-500'
               }`}>
-                {pullToRefresh.isPulling 
+            {pullToRefresh.isPulling 
                   ? pullToRefresh.distance > 60 
-                    ? 'Release to refresh' 
-                    : 'Keep pulling...'
-                  : '↓ Pull down to refresh'
-                }
+                ? 'Release to refresh' 
+                : 'Keep pulling...'
+              : '↓ Pull down to refresh'
+            }
               </span>
             </div>
             {/* Progress bar */}

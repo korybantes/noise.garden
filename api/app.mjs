@@ -1,6 +1,20 @@
 import { neon } from '@neondatabase/serverless';
 import { jwtVerify } from 'jose';
 import admin from 'firebase-admin';
+import { 
+  setSecurityHeaders, 
+  rateLimit, 
+  getAuthUser, 
+  validateInput, 
+  usernameRules, 
+  passwordRules, 
+  contentRules, 
+  inviteRules,
+  sanitizeSQL,
+  sanitizeHTML,
+  logSecurityEvent,
+  detectSuspiciousActivity
+} from './security.mjs';
 
 export const config = { runtime: 'nodejs' };
 
@@ -47,11 +61,31 @@ async function getAuthUser(req) {
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });
+  
+  // Set security headers
+  setSecurityHeaders(res);
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Cache-Control', 'no-store');
 
-  const me = await getAuthUser(req);
+  // Rate limiting for all requests
+  const clientIP = req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'unknown';
+  if (!rateLimit(req, res, `global:${clientIP}`)) {
+    return;
+  }
+
+  const me = await getAuthUser(req, res);
   const { action, args } = req.body || {};
+
+  // Detect suspicious activity
+  const suspicious = detectSuspiciousActivity(req, me);
+  if (suspicious.length > 0) {
+    logSecurityEvent('suspicious_activity_detected', {
+      ip: clientIP,
+      userAgent: req.headers['user-agent'],
+      action,
+      suspicious
+    });
+  }
 
   try {
     switch (action) {
@@ -77,13 +111,61 @@ export default async function handler(req, res) {
       }
 
       case 'createUser': {
+        // Rate limit signup attempts
+        if (!rateLimit(req, res, `signup:${clientIP}`)) {
+          return;
+        }
+        
         const { username, passwordHash } = args;
-        const rows = await sql`INSERT INTO users (username, password_hash) VALUES (${username}, ${passwordHash}) RETURNING id, username, password_hash, created_at, role, avatar_url, bio`;
+        
+        // Validate input
+        const validationErrors = validateInput({ username }, usernameRules);
+        if (validationErrors.length > 0) {
+          logSecurityEvent('validation_error', {
+            ip: clientIP,
+            action: 'createUser',
+            errors: validationErrors
+          });
+          return res.status(400).json({ error: 'validation_error', details: validationErrors });
+        }
+        
+        // Sanitize inputs
+        const sanitizedUsername = sanitizeSQL(username.toLowerCase());
+        
+        // Check for existing user
+        const existingUser = await sql`SELECT id FROM users WHERE username = ${sanitizedUsername}`;
+        if (existingUser.length > 0) {
+          logSecurityEvent('duplicate_username_attempt', {
+            ip: clientIP,
+            username: sanitizedUsername
+          });
+          return res.status(409).json({ error: 'username_exists' });
+        }
+        
+        const rows = await sql`INSERT INTO users (username, password_hash) VALUES (${sanitizedUsername}, ${passwordHash}) RETURNING id, username, password_hash, created_at, role, avatar_url, bio`;
+        
+        logSecurityEvent('user_created', {
+          ip: clientIP,
+          userId: rows[0].id,
+          username: sanitizedUsername
+        });
+        
         return res.status(200).json(rows[0]);
       }
+      
       case 'getUserByUsername': {
         const { username } = args;
-        const rows = await sql`SELECT id, username, password_hash, created_at, role, avatar_url, bio FROM users WHERE username = ${username}`;
+        
+        // Validate input
+        const validationErrors = validateInput({ username }, usernameRules);
+        if (validationErrors.length > 0) {
+          return res.status(400).json({ error: 'validation_error', details: validationErrors });
+        }
+        
+        // Sanitize input
+        const sanitizedUsername = sanitizeSQL(username.toLowerCase());
+        
+        const rows = await sql`SELECT id, username, password_hash, created_at, role, avatar_url, bio FROM users WHERE username = ${sanitizedUsername}`;
         return res.status(200).json(rows[0] || null);
       }
       case 'updateUserProfile': {
@@ -108,10 +190,59 @@ export default async function handler(req, res) {
 
       case 'createPost': {
         if (!me) return res.status(401).json({ error: 'unauthorized' });
+        
+        // Rate limit post creation
+        if (!rateLimit(req, res, `post:${me.userId}`)) {
+          return;
+        }
+        
         const { content, parentId, repostOf, imageUrl, expiresAt } = args;
-        const rows = await sql`INSERT INTO posts (user_id, content, parent_id, repost_of, image_url, expires_at) VALUES (${me.userId}, ${content}, ${parentId || null}, ${repostOf || null}, ${imageUrl || null}, ${expiresAt || sql`DEFAULT`}) RETURNING id, user_id, content, created_at, expires_at, parent_id, repost_of, image_url`;
+        
+        // Validate content
+        const validationErrors = validateInput({ content }, contentRules);
+        if (validationErrors.length > 0) {
+          logSecurityEvent('invalid_post_content', {
+            ip: clientIP,
+            userId: me.userId,
+            errors: validationErrors
+          });
+          return res.status(400).json({ error: 'validation_error', details: validationErrors });
+        }
+        
+        // Sanitize inputs
+        const sanitizedContent = sanitizeHTML(sanitizeSQL(content));
+        const sanitizedParentId = parentId ? sanitizeSQL(parentId) : null;
+        const sanitizedRepostOf = repostOf ? sanitizeSQL(repostOf) : null;
+        const sanitizedImageUrl = imageUrl ? sanitizeSQL(imageUrl) : null;
+        
+        // Check if parent post exists (if replying)
+        if (sanitizedParentId) {
+          const parentCheck = await sql`SELECT id FROM posts WHERE id = ${sanitizedParentId} AND expires_at > NOW()`;
+          if (parentCheck.length === 0) {
+            return res.status(404).json({ error: 'parent_post_not_found' });
+          }
+        }
+        
+        // Check if repost target exists (if reposting)
+        if (sanitizedRepostOf) {
+          const repostCheck = await sql`SELECT id FROM posts WHERE id = ${sanitizedRepostOf} AND expires_at > NOW()`;
+          if (repostCheck.length === 0) {
+            return res.status(404).json({ error: 'repost_target_not_found' });
+          }
+        }
+        
+        const rows = await sql`INSERT INTO posts (user_id, content, parent_id, repost_of, image_url, expires_at) VALUES (${me.userId}, ${sanitizedContent}, ${sanitizedParentId}, ${sanitizedRepostOf}, ${sanitizedImageUrl}, ${expiresAt || sql`DEFAULT`}) RETURNING id, user_id, content, created_at, expires_at, parent_id, repost_of, image_url`;
         const post = rows[0];
         const u = await sql`SELECT username, role, avatar_url FROM users WHERE id = ${me.userId}`;
+        
+        logSecurityEvent('post_created', {
+          ip: clientIP,
+          userId: me.userId,
+          postId: post.id,
+          hasParent: !!sanitizedParentId,
+          hasRepost: !!sanitizedRepostOf
+        });
+        
         return res.status(200).json({ ...post, username: u[0].username, role: u[0].role, avatar_url: u[0].avatar_url, reply_count: 0, repost_count: 0 });
       }
       case 'getRandomPosts': {
@@ -156,13 +287,88 @@ export default async function handler(req, res) {
       // Invites and onboarding
       case 'getInviteByCode': {
         const { code } = args;
-        const rows = await sql`SELECT code, created_by, created_at, used_by, used_at FROM invites WHERE code = ${code}`;
+        
+        // Validate invite code format
+        const validationErrors = validateInput({ invite: code }, inviteRules);
+        if (validationErrors.length > 0) {
+          logSecurityEvent('invalid_invite_code', {
+            ip: clientIP,
+            code: code?.substring(0, 10) + '...' // Log partial code for security
+          });
+          return res.status(400).json({ error: 'invalid_invite_code' });
+        }
+        
+        // Sanitize input
+        const sanitizedCode = sanitizeSQL(code.toUpperCase());
+        
+        const rows = await sql`SELECT code, created_by, created_at, used_by, used_at FROM invites WHERE code = ${sanitizedCode}`;
         return res.status(200).json(rows[0] || null);
       }
+      
       case 'markInviteUsed': {
-        const { code, usedByUserId } = args;
-        const rows = await sql`UPDATE invites SET used_by = ${usedByUserId}, used_at = NOW() WHERE code = ${code} AND used_by IS NULL RETURNING code`;
-        return res.status(200).json({ ok: rows.length > 0 });
+        if (!me) return res.status(401).json({ error: 'unauthorized' });
+        
+        const { code, userId } = args;
+        
+        // Validate invite code format
+        const validationErrors = validateInput({ invite: code }, inviteRules);
+        if (validationErrors.length > 0) {
+          logSecurityEvent('invalid_invite_usage', {
+            ip: clientIP,
+            userId: me.userId,
+            code: code?.substring(0, 10) + '...'
+          });
+          return res.status(400).json({ error: 'invalid_invite_code' });
+        }
+        
+        // Sanitize inputs
+        const sanitizedCode = sanitizeSQL(code.toUpperCase());
+        const sanitizedUserId = sanitizeSQL(userId);
+        
+        // Check if invite exists and is unused
+        const inviteCheck = await sql`SELECT created_by, used_by FROM invites WHERE code = ${sanitizedCode}`;
+        if (inviteCheck.length === 0) {
+          logSecurityEvent('non_existent_invite', {
+            ip: clientIP,
+            userId: me.userId,
+            code: sanitizedCode
+          });
+          return res.status(404).json({ error: 'invite_not_found' });
+        }
+        
+        if (inviteCheck[0].used_by) {
+          logSecurityEvent('already_used_invite', {
+            ip: clientIP,
+            userId: me.userId,
+            code: sanitizedCode
+          });
+          return res.status(409).json({ error: 'invite_already_used' });
+        }
+        
+        // Prevent self-invitation (security measure)
+        if (inviteCheck[0].created_by === sanitizedUserId) {
+          logSecurityEvent('self_invitation_attempt', {
+            ip: clientIP,
+            userId: me.userId,
+            code: sanitizedCode
+          });
+          return res.status(403).json({ error: 'cannot_use_own_invite' });
+        }
+        
+        // Mark invite as used
+        const result = await sql`UPDATE invites SET used_by = ${sanitizedUserId}, used_at = NOW() WHERE code = ${sanitizedCode} AND used_by IS NULL RETURNING code`;
+        
+        if (result.length === 0) {
+          return res.status(409).json({ error: 'invite_already_used' });
+        }
+        
+        logSecurityEvent('invite_used', {
+          ip: clientIP,
+          userId: me.userId,
+          code: sanitizedCode
+        });
+        
+        return res.status(200).json({ success: true });
       }
       case 'createInviteForUser': {
         if (!me) return res.status(401).json({ error: 'unauthorized' });

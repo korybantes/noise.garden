@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { LogIn, UserPlus, AlertTriangle } from 'lucide-react';
+import { LogIn, UserPlus, AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import { createUser, getUserByUsername, updateUserProfile, getInviteByCode, markInviteUsed, isUserBanned } from '../lib/database';
 import { hashPassword, verifyPassword, createToken, storeToken } from '../lib/auth';
 import { useAuth } from '../hooks/useAuth';
@@ -69,12 +69,15 @@ export function AuthForm() {
   const [mode, setMode] = useState<'login' | 'signup' | 'backup'>('login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [invite, setInvite] = useState('');
   const [backupCode, setBackupCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [signupCodes, setSignupCodes] = useState<string[] | null>(null);
   const [altchaPayload, setAltchaPayload] = useState<string>('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const altchaRef = useRef<HTMLDivElement | null>(null);
   const { login } = useAuth();
 
@@ -146,6 +149,22 @@ export function AuthForm() {
     mount();
   }, [mode]);
 
+  const handleModeChange = (newMode: 'login' | 'signup' | 'backup') => {
+    setMode(newMode);
+    setError('');
+    setConfirmPassword('');
+    setShowPassword(false);
+    setShowConfirmPassword(false);
+  };
+
+  const getPasswordStrength = (pass: string) => {
+    if (pass.length < 6) return { strength: 'weak', color: 'text-red-500', text: 'Too short' };
+    if (pass.length < 8) return { strength: 'weak', color: 'text-red-500', text: 'Weak' };
+    if (pass.length < 10) return { strength: 'medium', color: 'text-yellow-500', text: 'Medium' };
+    if (pass.length < 12) return { strength: 'strong', color: 'text-green-500', text: 'Strong' };
+    return { strength: 'very-strong', color: 'text-green-600', text: 'Very strong' };
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (username.length < 3) { setError('Username must be 3+ chars'); return; }
@@ -159,6 +178,19 @@ export function AuthForm() {
         const existingUser = await getUserByUsername(username);
         if (existingUser) { setError('Username already exists'); return; }
         if (password.length < 6) { setError('Password must be 6+ chars'); return; }
+        if (password !== confirmPassword) { setError('Passwords do not match'); return; }
+        
+        // Enhanced password strength validation
+        const hasUpperCase = /[A-Z]/.test(password);
+        const hasLowerCase = /[a-z]/.test(password);
+        const hasNumbers = /\d/.test(password);
+        const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+        
+        if (!hasUpperCase || !hasLowerCase || !hasNumbers) {
+          setError('Password must contain uppercase, lowercase, and numbers');
+          return;
+        }
+        
         if (!invite.trim()) { setError('Invite code required'); return; }
         const inv = await getInviteByCode(invite.trim().toUpperCase());
         if (!inv || inv.used_by) { setError('Invalid or used invite code'); return; }
@@ -227,10 +259,10 @@ export function AuthForm() {
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">{mode === 'login' ? 'Log in' : mode === 'signup' ? 'Sign up' : 'Recover account'}</h1>
           <div className="flex items-center space-x-2">
-            <button type="button" className={`inline-flex items-center px-3 py-1.5 rounded text-sm border ${mode === 'login' ? 'bg-gray-900 text-white' : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200'}`} onClick={() => setMode('login')}>
+            <button type="button" className={`inline-flex items-center px-3 py-1.5 rounded text-sm border ${mode === 'login' ? 'bg-gray-900 text-white' : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200'}`} onClick={() => handleModeChange('login')}>
               <LogIn className="w-4 h-4 mr-1" /> Login
             </button>
-            <button type="button" className={`inline-flex items-center px-3 py-1.5 rounded text-sm border ${mode === 'signup' ? 'bg-gray-900 text-white' : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200'}`} onClick={() => setMode('signup')}>
+            <button type="button" className={`inline-flex items-center px-3 py-1.5 rounded text-sm border ${mode === 'signup' ? 'bg-gray-900 text-white' : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200'}`} onClick={() => handleModeChange('signup')}>
               <UserPlus className="w-4 h-4 mr-1" /> Sign Up
             </button>
           </div>
@@ -251,12 +283,60 @@ export function AuthForm() {
         {mode !== 'backup' && (
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="mt-1 w-full rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-3 py-2 font-mono text-base" placeholder="password" />
+            <div className="relative">
+              <input 
+                type={showPassword ? 'text' : 'password'} 
+                value={password} 
+                onChange={e => setPassword(e.target.value)} 
+                className="mt-1 w-full rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-3 py-2 pr-10 font-mono text-base" 
+                placeholder="password" 
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+            {mode === 'signup' && password && (
+              <div className="mt-1 text-xs font-mono">
+                <span className={getPasswordStrength(password).color}>
+                  {getPasswordStrength(password).text}
+                </span>
+                {password.length >= 6 && (
+                  <div className="mt-1 flex gap-1">
+                    <div className={`h-1 flex-1 rounded ${password.length >= 8 ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                    <div className={`h-1 flex-1 rounded ${password.length >= 10 ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                    <div className={`h-1 flex-1 rounded ${password.length >= 12 ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
-            {mode === 'signup' && (
+        {mode === 'signup' && (
           <>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Confirm Password</label>
+              <div className="relative">
+                <input 
+                  type={showConfirmPassword ? 'text' : 'password'} 
+                  value={confirmPassword} 
+                  onChange={e => setConfirmPassword(e.target.value)} 
+                  className="mt-1 w-full rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-3 py-2 pr-10 font-mono text-base" 
+                  placeholder="confirm password" 
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                >
+                  {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Invite code</label>
               <input value={invite} onChange={e => setInvite(e.target.value.toUpperCase())} className="mt-1 w-full rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-3 py-2 font-mono text-base" placeholder="XXX-XXX-XXX" maxLength={11} />
@@ -284,7 +364,7 @@ export function AuthForm() {
 
         {mode === 'login' && (
           <div className="text-center">
-            <button type="button" onClick={() => setMode('backup')} className="mt-2 text-xs font-mono text-gray-600 dark:text-gray-400 underline">Recover your account</button>
+            <button type="button" onClick={() => handleModeChange('backup')} className="mt-2 text-xs font-mono text-gray-600 dark:text-gray-400 underline">Recover your account</button>
           </div>
         )}
       </form>
