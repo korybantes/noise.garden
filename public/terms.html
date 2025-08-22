@@ -13,246 +13,389 @@
         
         body {
             font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-            line-height: 1.6;
-            color: #333;
-            background-color: #f9fafb;
+            line-height: 1.5;
+            color: #374151;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            min-height: 100vh;
             padding: 20px;
         }
         
         .container {
-            max-width: 800px;
+            max-width: 700px;
             margin: 0 auto;
             background: white;
-            padding: 40px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-radius: 16px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            overflow: hidden;
         }
         
-        h1 {
-            color: #1f2937;
+        .header {
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+            position: relative;
+        }
+        
+        .logo {
+            width: 48px;
+            height: 48px;
+            margin: 0 auto 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header h1 {
+            font-size: 1.8em;
+            font-weight: 700;
+            margin-bottom: 8px;
+            letter-spacing: -0.025em;
+        }
+        
+        .header .subtitle {
+            font-size: 0.9em;
+            opacity: 0.8;
+            font-weight: 400;
+        }
+        
+        .content {
+            padding: 40px 30px;
+        }
+        
+        .highlight-box {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border: 1px solid #f59e0b;
+            border-radius: 12px;
+            padding: 20px;
             margin-bottom: 30px;
-            font-size: 2em;
-            border-bottom: 2px solid #e5e7eb;
-            padding-bottom: 10px;
+            position: relative;
+        }
+        
+        .highlight-box::before {
+            content: "⚠️";
+            position: absolute;
+            top: -10px;
+            left: 20px;
+            background: white;
+            padding: 0 8px;
+            font-size: 14px;
+        }
+        
+        .highlight-box strong {
+            color: #92400e;
+            font-weight: 600;
         }
         
         h2 {
-            color: #374151;
-            margin: 30px 0 15px 0;
+            color: #1f2937;
             font-size: 1.3em;
+            font-weight: 600;
+            margin: 30px 0 15px 0;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e5e7eb;
         }
         
         h3 {
-            color: #4b5563;
-            margin: 20px 0 10px 0;
+            color: #374151;
             font-size: 1.1em;
+            font-weight: 600;
+            margin: 20px 0 10px 0;
         }
         
         p, li {
-            margin-bottom: 10px;
+            margin-bottom: 8px;
             font-size: 0.9em;
+            color: #4b5563;
         }
         
         ul {
             margin-left: 20px;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
         
-        .highlight {
-            background-color: #fef3c7;
-            padding: 15px;
-            border-left: 4px solid #f59e0b;
-            margin: 20px 0;
-            border-radius: 4px;
-        }
-        
-        .date {
-            color: #6b7280;
-            font-size: 0.8em;
-            margin-bottom: 30px;
+        li {
+            margin-bottom: 6px;
         }
         
         .back-link {
-            display: inline-block;
-            margin-bottom: 20px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
             color: #3b82f6;
             text-decoration: none;
             font-size: 0.9em;
+            font-weight: 500;
+            padding: 8px 16px;
+            border-radius: 8px;
+            background: #eff6ff;
+            border: 1px solid #dbeafe;
+            transition: all 0.2s ease;
+            margin-bottom: 20px;
         }
         
         .back-link:hover {
-            text-decoration: underline;
+            background: #dbeafe;
+            color: #1d4ed8;
+            transform: translateY(-1px);
+        }
+        
+        .section {
+            background: #f9fafb;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            border: 1px solid #e5e7eb;
+        }
+        
+        .section h3 {
+            margin-top: 0;
+            color: #1f2937;
+        }
+        
+        .contact-info {
+            background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+            border: 1px solid #10b981;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 30px 0;
+        }
+        
+        .contact-info h3 {
+            color: #065f46;
+            margin-top: 0;
+        }
+        
+        .contact-info ul {
+            margin-bottom: 0;
+        }
+        
+        .contact-info li {
+            color: #047857;
         }
         
         @media (max-width: 768px) {
-            .container {
-                padding: 20px;
-                margin: 10px;
+            body {
+                padding: 10px;
             }
             
-            h1 {
+            .container {
+                border-radius: 12px;
+            }
+            
+            .header {
+                padding: 30px 20px;
+            }
+            
+            .content {
+                padding: 30px 20px;
+            }
+            
+            .header h1 {
                 font-size: 1.5em;
             }
+            
+            h2 {
+                font-size: 1.2em;
+            }
+        }
+        
+        .footer {
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+            padding: 20px 30px;
+            text-align: center;
+            color: #64748b;
+            font-size: 0.8em;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <a href="javascript:window.close()" class="back-link">← Close Window</a>
-        
-        <h1>Terms of Service</h1>
-        <div class="date">Last updated: December 2024</div>
-        
-        <div class="highlight">
-            <strong>Important:</strong> By creating an account on noise.garden, you agree to these terms. This is an ephemeral social platform where content automatically expires.
+        <div class="header">
+            <img src="/logo.png" alt="noise.garden" class="logo">
+            <h1>Terms of Service</h1>
+            <div class="subtitle">Last updated: December 2024</div>
         </div>
         
-        <h2>1. Platform Description</h2>
-        <p>noise.garden is an ephemeral, invitation-only social platform where:</p>
-        <ul>
-            <li>All posts and messages automatically expire after a set period</li>
-            <li>Access is controlled through invitation codes</li>
-            <li>Community standards are actively enforced</li>
-            <li>Privacy and user safety are prioritized</li>
-        </ul>
-        
-        <h2>2. Account Requirements</h2>
-        <h3>2.1 Age Requirements</h3>
-        <p>You must be at least 13 years old to use this service. Users under 18 should have parental consent.</p>
-        
-        <h3>2.2 Account Security</h3>
-        <ul>
-            <li>You are responsible for maintaining the security of your account</li>
-            <li>Use strong, unique passwords</li>
-            <li>Do not share your login credentials</li>
-            <li>Report any unauthorized access immediately</li>
-        </ul>
-        
-        <h3>2.3 Invitation System</h3>
-        <ul>
-            <li>Each user receives one invite code to share</li>
-            <li>You are responsible for whom you invite</li>
-            <li>Inviting users who violate terms may affect your account standing</li>
-        </ul>
-        
-        <h2>3. Content Guidelines</h2>
-        <h3>3.1 Prohibited Content</h3>
-        <p>The following content is strictly prohibited:</p>
-        <ul>
-            <li>Harassment, bullying, or threats</li>
-            <li>Hate speech or discrimination</li>
-            <li>Sexual content involving minors</li>
-            <li>Spam or excessive promotional content</li>
-            <li>Malware, phishing, or malicious links</li>
-            <li>Content that violates intellectual property rights</li>
-            <li>Illegal activities or content</li>
-        </ul>
-        
-        <h3>3.2 Content Expiration</h3>
-        <ul>
-            <li>All posts expire automatically (default: 30 days)</li>
-            <li>Expired content is permanently deleted from our servers</li>
-            <li>Users can set custom expiration times for their posts</li>
-        </ul>
-        
-        <h2>4. User Conduct</h2>
-        <h3>4.1 Community Standards</h3>
-        <ul>
-            <li>Treat all users with respect and courtesy</li>
-            <li>Engage in constructive and meaningful conversations</li>
-            <li>Report violations of community guidelines</li>
-            <li>Respect the ephemeral nature of the platform</li>
-        </ul>
-        
-        <h3>4.2 Enforcement</h3>
-        <ul>
-            <li>Violations may result in content removal, muting, or account suspension</li>
-            <li>Repeated violations may lead to permanent bans</li>
-            <li>Decisions are made by moderators and administrators</li>
-            <li>Appeals can be submitted through official channels</li>
-        </ul>
-        
-        <h2>5. Privacy and Data</h2>
-        <h3>5.1 Data Collection</h3>
-        <ul>
-            <li>We collect minimal personal information necessary for service operation</li>
-            <li>All data collection is outlined in our Privacy Policy</li>
-            <li>We do not sell or share personal data with third parties</li>
-        </ul>
-        
-        <h3>5.2 Data Retention</h3>
-        <ul>
-            <li>Content expires and is deleted according to set timelines</li>
-            <li>Account data is retained only while accounts remain active</li>
-            <li>Deleted accounts result in permanent data removal</li>
-        </ul>
-        
-        <h2>6. Platform Availability</h2>
-        <h3>6.1 Service Provision</h3>
-        <ul>
-            <li>We strive to maintain 99% uptime but cannot guarantee constant availability</li>
-            <li>Scheduled maintenance will be announced in advance when possible</li>
-            <li>Emergency maintenance may occur without notice</li>
-        </ul>
-        
-        <h3>6.2 Feature Changes</h3>
-        <ul>
-            <li>Platform features may be added, modified, or removed</li>
-            <li>Major changes will be communicated to users</li>
-            <li>Continued use constitutes acceptance of changes</li>
-        </ul>
-        
-        <h2>7. Intellectual Property</h2>
-        <h3>7.1 User Content</h3>
-        <ul>
-            <li>You retain ownership of content you create</li>
-            <li>You grant us license to display and distribute your content on the platform</li>
-            <li>This license terminates when content expires or is deleted</li>
-        </ul>
-        
-        <h3>7.2 Platform Rights</h3>
-        <ul>
-            <li>The platform design, code, and features are our intellectual property</li>
-            <li>Users may not reverse engineer or copy platform functionality</li>
-            <li>API access is provided under separate terms</li>
-        </ul>
-        
-        <h2>8. Limitation of Liability</h2>
-        <div class="highlight">
-            <p><strong>IMPORTANT:</strong> This service is provided "as is" without warranties of any kind. We are not liable for any damages arising from platform use, including but not limited to data loss, service interruptions, or user interactions.</p>
+        <div class="content">
+            <a href="javascript:window.close()" class="back-link">← Close Window</a>
+            
+            <div class="highlight-box">
+                <strong>Important:</strong> By creating an account on noise.garden, you agree to these terms. This is an ephemeral social platform where content automatically expires.
+            </div>
+            
+            <div class="section">
+                <h2>1. Platform Description</h2>
+                <p>noise.garden is an ephemeral, invitation-only social platform where:</p>
+                <ul>
+                    <li>All posts and messages automatically expire after a set period</li>
+                    <li>Access is controlled through invitation codes</li>
+                    <li>Community standards are actively enforced</li>
+                    <li>Privacy and user safety are prioritized</li>
+                </ul>
+            </div>
+            
+            <div class="section">
+                <h2>2. Account Requirements</h2>
+                <h3>2.1 Age Requirements</h3>
+                <p>You must be at least 13 years old to use this service. Users under 18 should have parental consent.</p>
+                
+                <h3>2.2 Account Security</h3>
+                <ul>
+                    <li>You are responsible for maintaining the security of your account</li>
+                    <li>Use strong, unique passwords</li>
+                    <li>Do not share your login credentials</li>
+                    <li>Report any unauthorized access immediately</li>
+                </ul>
+                
+                <h3>2.3 Invitation System</h3>
+                <ul>
+                    <li>Each user receives one invite code to share</li>
+                    <li>You are responsible for whom you invite</li>
+                    <li>Inviting users who violate terms may affect your account standing</li>
+                </ul>
+            </div>
+            
+            <div class="section">
+                <h2>3. Content Guidelines</h2>
+                <h3>3.1 Prohibited Content</h3>
+                <p>The following content is strictly prohibited:</p>
+                <ul>
+                    <li>Harassment, bullying, or threats</li>
+                    <li>Hate speech or discrimination</li>
+                    <li>Sexual content involving minors</li>
+                    <li>Spam or excessive promotional content</li>
+                    <li>Malware, phishing, or malicious links</li>
+                    <li>Content that violates intellectual property rights</li>
+                    <li>Illegal activities or content</li>
+                </ul>
+                
+                <h3>3.2 Content Expiration</h3>
+                <ul>
+                    <li>All posts expire automatically (default: 30 days)</li>
+                    <li>Expired content is permanently deleted from our servers</li>
+                    <li>Users can set custom expiration times for their posts</li>
+                </ul>
+            </div>
+            
+            <div class="section">
+                <h2>4. User Conduct</h2>
+                <h3>4.1 Community Standards</h3>
+                <ul>
+                    <li>Treat all users with respect and courtesy</li>
+                    <li>Engage in constructive and meaningful conversations</li>
+                    <li>Report violations of community guidelines</li>
+                    <li>Respect the ephemeral nature of the platform</li>
+                </ul>
+                
+                <h3>4.2 Enforcement</h3>
+                <ul>
+                    <li>Violations may result in content removal, muting, or account suspension</li>
+                    <li>Repeated violations may lead to permanent bans</li>
+                    <li>Decisions are made by moderators and administrators</li>
+                    <li>Appeals can be submitted through official channels</li>
+                </ul>
+            </div>
+            
+            <div class="section">
+                <h2>5. Privacy and Data</h2>
+                <h3>5.1 Data Collection</h3>
+                <ul>
+                    <li>We collect minimal personal information necessary for service operation</li>
+                    <li>All data collection is outlined in our Privacy Policy</li>
+                    <li>We do not sell or share personal data with third parties</li>
+                </ul>
+                
+                <h3>5.2 Data Retention</h3>
+                <ul>
+                    <li>Content expires and is deleted according to set timelines</li>
+                    <li>Account data is retained only while accounts remain active</li>
+                    <li>Deleted accounts result in permanent data removal</li>
+                </ul>
+            </div>
+            
+            <div class="section">
+                <h2>6. Platform Availability</h2>
+                <h3>6.1 Service Provision</h3>
+                <ul>
+                    <li>We strive to maintain 99% uptime but cannot guarantee constant availability</li>
+                    <li>Scheduled maintenance will be announced in advance when possible</li>
+                    <li>Emergency maintenance may occur without notice</li>
+                </ul>
+                
+                <h3>6.2 Feature Changes</h3>
+                <ul>
+                    <li>Platform features may be added, modified, or removed</li>
+                    <li>Major changes will be communicated to users</li>
+                    <li>Continued use constitutes acceptance of changes</li>
+                </ul>
+            </div>
+            
+            <div class="section">
+                <h2>7. Intellectual Property</h2>
+                <h3>7.1 User Content</h3>
+                <ul>
+                    <li>You retain ownership of content you create</li>
+                    <li>You grant us license to display and distribute your content on the platform</li>
+                    <li>This license terminates when content expires or is deleted</li>
+                </ul>
+                
+                <h3>7.2 Platform Rights</h3>
+                <ul>
+                    <li>The platform design, code, and features are our intellectual property</li>
+                    <li>Users may not reverse engineer or copy platform functionality</li>
+                    <li>API access is provided under separate terms</li>
+                </ul>
+            </div>
+            
+            <div class="highlight-box">
+                <strong>IMPORTANT:</strong> This service is provided "as is" without warranties of any kind. We are not liable for any damages arising from platform use, including but not limited to data loss, service interruptions, or user interactions.
+            </div>
+            
+            <div class="section">
+                <h2>8. Termination</h2>
+                <h3>8.1 User Termination</h3>
+                <ul>
+                    <li>You may delete your account at any time</li>
+                    <li>Account deletion is permanent and irreversible</li>
+                    <li>All associated data will be permanently removed</li>
+                </ul>
+                
+                <h3>8.2 Platform Termination</h3>
+                <ul>
+                    <li>We may suspend or terminate accounts for terms violations</li>
+                    <li>Termination may be temporary or permanent</li>
+                    <li>Appeals can be submitted for review</li>
+                </ul>
+            </div>
+            
+            <div class="section">
+                <h2>9. Changes to Terms</h2>
+                <p>These terms may be updated periodically. Material changes will be communicated to users with at least 30 days notice. Continued use after changes take effect constitutes acceptance of new terms.</p>
+            </div>
+            
+            <div class="contact-info">
+                <h3>10. Contact Information</h3>
+                <p>For questions about these terms or to report violations:</p>
+                <ul>
+                    <li>Email: legal@noise.garden</li>
+                    <li>Platform: Use the built-in reporting features</li>
+                    <li>Response time: Within 48 hours for urgent matters</li>
+                </ul>
+            </div>
+            
+            <div class="section">
+                <h2>11. Governing Law</h2>
+                <p>These terms are governed by applicable local laws. Disputes will be resolved through binding arbitration where legally permitted.</p>
+            </div>
+            
+            <div class="highlight-box">
+                <strong>By creating an account, you acknowledge that you have read, understood, and agree to be bound by these Terms of Service.</strong>
+            </div>
         </div>
         
-        <h2>9. Termination</h2>
-        <h3>9.1 User Termination</h3>
-        <ul>
-            <li>You may delete your account at any time</li>
-            <li>Account deletion is permanent and irreversible</li>
-            <li>All associated data will be permanently removed</li>
-        </ul>
-        
-        <h3>9.2 Platform Termination</h3>
-        <ul>
-            <li>We may suspend or terminate accounts for terms violations</li>
-            <li>Termination may be temporary or permanent</li>
-            <li>Appeals can be submitted for review</li>
-        </ul>
-        
-        <h2>10. Changes to Terms</h2>
-        <p>These terms may be updated periodically. Material changes will be communicated to users with at least 30 days notice. Continued use after changes take effect constitutes acceptance of new terms.</p>
-        
-        <h2>11. Contact Information</h2>
-        <p>For questions about these terms or to report violations:</p>
-        <ul>
-            <li>Email: legal@noise.garden</li>
-            <li>Platform: Use the built-in reporting features</li>
-            <li>Response time: Within 48 hours for urgent matters</li>
-        </ul>
-        
-        <h2>12. Governing Law</h2>
-        <p>These terms are governed by applicable local laws. Disputes will be resolved through binding arbitration where legally permitted.</p>
-        
-        <div class="highlight">
-            <p><strong>By creating an account, you acknowledge that you have read, understood, and agree to be bound by these Terms of Service.</strong></p>
+        <div class="footer">
+            © 2024 noise.garden - Privacy-focused ephemeral social platform
         </div>
     </div>
 </body>

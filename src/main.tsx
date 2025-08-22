@@ -37,8 +37,8 @@ function Root() {
         
         if (native) {
           try {
-          const { SplashScreen } = await import('@capacitor/splash-screen');
-          SplashScreen.hide();
+            const { SplashScreen } = await import('@capacitor/splash-screen');
+            SplashScreen.hide();
           } catch {
             // Ignore splash screen errors
           }
@@ -46,6 +46,9 @@ function Root() {
           // Check if welcome was completed on this device
           const completed = localStorage.getItem('welcome_completed') === 'true';
           setWelcomeCompleted(completed);
+        } else {
+          // On web, always consider welcome completed
+          setWelcomeCompleted(true);
         }
       } catch {
         setIsNative(false);
@@ -55,38 +58,22 @@ function Root() {
   }, []);
 
   // Show loading while detecting platform
-  if (isNative === null) {
+  if (isNative === null || welcomeCompleted === null) {
     return <MobileLoading />;
   }
 
-  // On mobile, show welcome first if not completed
-  if (isNative && !welcomeCompleted) {
-    return (
-      <StrictMode>
-        <AuthProvider>
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Welcome />} />
-              <Route path="/terms" element={<Terms />} />
-              <Route path="/privacy" element={<Privacy />} />
-              <Route path="/cookies" element={<Cookies />} />
-              <Route path="/docs" element={<Docs />} />
-              <Route path="/app" element={<App />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </BrowserRouter>
-        </AuthProvider>
-      </StrictMode>
-    );
-  }
+  // Determine if we should show welcome
+  const shouldShowWelcome = isNative && !welcomeCompleted;
 
-  // Web or mobile with completed welcome
   return (
     <StrictMode>
       <AuthProvider>
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={isNative ? <Navigate to="/app" replace /> : <Landing />} />
+            <Route path="/" element={
+              shouldShowWelcome ? <Welcome /> : 
+              isNative ? <Navigate to="/app" replace /> : <Landing />
+            } />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<Terms />} />
             <Route path="/cookies" element={<Cookies />} />

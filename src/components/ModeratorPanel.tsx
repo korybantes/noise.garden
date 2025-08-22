@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { X, Flag, Eye, EyeOff, Unlock, RefreshCw, ShieldAlert, MicOff, Mic } from 'lucide-react';
+import { X, Flag, Eye, EyeOff, Unlock, RefreshCw, ShieldAlert, MicOff, Mic, Key, Copy, Check } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
-import { getBannedUsers, banUser, unbanUser, muteUser, unmuteUser, getMutedUsers } from '../lib/database';
+import { getBannedUsers, banUser, unbanUser, muteUser, unmuteUser, getMutedUsers, createAdminInvite } from '../lib/database';
 import { useLanguage } from '../hooks/useLanguage';
 
 interface ModeratorPanelProps {
@@ -40,15 +40,25 @@ interface FlaggedPost {
   flag_count: number;
 }
 
+interface Invite {
+  code: string;
+  created_by: string;
+  created_at: Date;
+  used_by?: string | null;
+  used_at?: Date | null;
+  used_by_username?: string | null;
+}
+
 export function ModeratorPanel({ onClose }: ModeratorPanelProps) {
   const { user } = useAuth();
   const { language } = useLanguage();
   const [bannedUsers, setBannedUsers] = useState<BannedUser[]>([]);
   const [flaggedPosts, setFlaggedPosts] = useState<FlaggedPost[]>([]);
+  const [invites, setInvites] = useState<Invite[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-  const [activeTab, setActiveTab] = useState<'reports' | 'banned' | 'muted'>('reports');
+  const [activeTab, setActiveTab] = useState<'reports' | 'banned' | 'muted' | 'invites'>('reports');
   const [showBanModal, setShowBanModal] = useState<{ show: boolean; userId: string; username: string }>({ show: false, userId: '', username: '' });
   const [banReason, setBanReason] = useState('');
   const [banning, setBanning] = useState(false);
@@ -64,6 +74,8 @@ export function ModeratorPanel({ onClose }: ModeratorPanelProps) {
   const [muteTarget, setMuteTarget] = useState<{ id: string; username: string } | null>(null);
   const [muteReason, setMuteReason] = useState('');
   const [muteDuration, setMuteDuration] = useState(24);
+  const [generatingInvite, setGeneratingInvite] = useState(false);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -75,14 +87,16 @@ export function ModeratorPanel({ onClose }: ModeratorPanelProps) {
     setLoading(true);
     setError('');
     try {
-      const [bannedData, mutedData, flaggedData] = await Promise.all([
+      const [bannedData, mutedData, flaggedData, invitesData] = await Promise.all([
         getBannedUsers(user.userId),
         getMutedUsers(user.userId),
-        loadFlaggedPosts()
+        loadFlaggedPosts(),
+        loadInvites()
       ]);
       setBannedUsers(bannedData);
       setMutedUsers(mutedData);
       setFlaggedPosts(flaggedData);
+      setInvites(invitesData);
     } catch (err) {
       setError('Failed to load data');
       console.error(err);
@@ -113,6 +127,33 @@ export function ModeratorPanel({ onClose }: ModeratorPanelProps) {
       return result.flaggedPosts || [];
     } catch (error) {
       console.error('Error loading flagged posts:', error);
+      return [];
+    }
+  };
+
+  const loadInvites = async () => {
+    if (!user) return [];
+    try {
+      const response = await fetch('/api/invites', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        },
+        body: JSON.stringify({
+          action: 'getInvitesCreatedBy',
+          args: { userId: user.userId }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to load invites');
+      }
+
+      const result = await response.json();
+      return result.invites || [];
+    } catch (error) {
+      console.error('Error loading invites:', error);
       return [];
     }
   };
@@ -252,6 +293,45 @@ export function ModeratorPanel({ onClose }: ModeratorPanelProps) {
     }
   };
 
+  const handleGenerateInvite = async () => {
+    if (!user) return;
+    setGeneratingInvite(true);
+    try {
+      const response = await createAdminInvite(user.userId);
+      // Map the database response to our interface format
+      const newInvite: Invite = {
+        code: response.code,
+        created_by: response.created_by,
+        created_at: response.created_at,
+        used_by: response.used_by,
+        used_at: response.used_at,
+        used_by_username: null
+      };
+      setInvites(prev => [...prev, newInvite]);
+      setCopiedCode(response.code);
+      // Auto-copy to clipboard
+      navigator.clipboard.writeText(response.code);
+      // Show success message
+      setError(''); // Clear any previous errors
+      setSuccessMessage('Invite generated successfully!');
+      setTimeout(() => setSuccessMessage(''), 5000); // Hide after 5 seconds
+    } catch (err) {
+      setError('Failed to generate invite');
+      console.error(err);
+    } finally {
+      setGeneratingInvite(false);
+    }
+  };
+
+  const handleCopyInviteCode = (code: string) => {
+    navigator.clipboard.writeText(code).then(() => {
+      setCopiedCode(code);
+      setTimeout(() => setCopiedCode(null), 2000);
+    }).catch(err => {
+      console.error('Failed to copy invite code:', err);
+    });
+  };
+
   const openMuteModal = (userItem: { id: string; username: string }) => {
     setMuteTarget(userItem);
     setShowMuteModal(true);
@@ -322,6 +402,25 @@ export function ModeratorPanel({ onClose }: ModeratorPanelProps) {
             >
               <span className="hidden sm:inline">{language === 'tr' ? 'Susturulmuş Kullanıcılar' : 'Muted Users'}</span>
               <span className="sm:hidden">{language === 'tr' ? 'Susturulmuş' : 'Muted'}</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('invites')}
+              className={`px-2 sm:px-4 py-2 font-mono text-xs sm:text-sm transition-colors ${
+                activeTab === 'invites'
+                  ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
+              }`}
+            >
+              <div className="flex items-center gap-1 sm:gap-2">
+                <Key size={14} className="sm:w-4 sm:h-4" />
+                <span className="hidden sm:inline">{language === 'tr' ? 'Davetler' : 'Invites'}</span>
+                <span className="sm:hidden">{language === 'tr' ? 'Davetler' : 'Invites'}</span>
+                {invites.length > 0 && (
+                  <span className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs px-1.5 sm:px-2 py-0.5 rounded-full">
+                    {invites.length}
+                  </span>
+                )}
+              </div>
             </button>
           </div>
 
@@ -551,6 +650,80 @@ export function ModeratorPanel({ onClose }: ModeratorPanelProps) {
             {activeTab === 'muted' && mutedUsers.length === 0 && (
               <div className="text-center py-8 text-gray-500 dark:text-gray-400 font-mono text-sm">
                 {language === 'tr' ? 'Susturulmuş kullanıcı bulunamadı' : 'No muted users found'}
+              </div>
+            )}
+
+            {/* Invites Section */}
+            {activeTab === 'invites' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-mono text-lg font-semibold text-gray-900 dark:text-gray-100">
+                    {language === 'tr' ? 'Davetleri Yönet' : 'Manage Invites'}
+                  </h3>
+                  <button
+                    onClick={handleGenerateInvite}
+                    disabled={generatingInvite}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md font-mono text-sm hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  >
+                    <Key size={16} />
+                    {generatingInvite ? (language === 'tr' ? 'Oluşturuluyor...' : 'Generating...') : (language === 'tr' ? 'Yeni Davet Oluştur' : 'Generate New Invite')}
+                  </button>
+                </div>
+
+                {loading ? (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400 font-mono">
+                    {language === 'tr' ? 'davetler yükleniyor...' : 'loading invites...'}
+                  </div>
+                ) : invites.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400 font-mono">
+                    {language === 'tr' ? 'Henüz davet oluşturulmadı.' : 'No invites generated yet.'}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {invites.map((invite) => (
+                      <div
+                        key={invite.code}
+                        className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-mono text-sm text-gray-900 dark:text-gray-100">
+                              {language === 'tr' ? 'Davet Kodu' : 'Invite Code'}: {invite.code}
+                            </div>
+                            <div className="text-xs text-gray-600 dark:text-gray-400">
+                              {language === 'tr' ? 'Oluşturuldu' : 'Created'}: {new Date(invite.created_at).toLocaleDateString()}
+                            </div>
+                            {invite.used_by && (
+                              <div className="text-xs text-green-600 dark:text-green-400 mt-1">
+                                {language === 'tr' ? 'Kullanan' : 'Used by'}: @{invite.used_by_username || (language === 'tr' ? 'Bilinmeyen Kullanıcı' : 'Unknown User')}
+                              </div>
+                            )}
+                            {!invite.used_by && (
+                              <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                                {language === 'tr' ? 'Kullanıma hazır' : 'Available for use'}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {!invite.used_by && (
+                              <button
+                                onClick={() => handleCopyInviteCode(invite.code)}
+                                className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                                title={language === 'tr' ? 'Davet kodunu kopyala' : 'Copy invite code'}
+                              >
+                                {copiedCode === invite.code ? (
+                                  <Check size={16} className="text-green-600" />
+                                ) : (
+                                  <Copy size={16} />
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
