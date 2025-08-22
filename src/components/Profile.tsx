@@ -7,6 +7,7 @@ import { ShieldCheck, ShieldAlert, Link2, MicOff, Mic, Bell, MessageSquare, AtSi
 import { useRouter } from '../hooks/useRouter';
 import { useLanguage } from '../hooks/useLanguage';
 import { useLocalNotifications } from '../hooks/useLocalNotifications';
+import { ENABLE_PULL_TO_REFRESH } from '../lib/flags';
 
 export function Profile() {
   const { user } = useAuth();
@@ -106,47 +107,36 @@ export function Profile() {
 
   // Pull-to-refresh functionality (mobile only)
   useEffect(() => {
-    if (!isMobile) return; // Only enable on mobile devices
+    if (!isMobile || !ENABLE_PULL_TO_REFRESH) return; // Only enable on mobile devices
     
     let startY = 0;
     let currentY = 0;
     let isPulling = false;
-    let startTime = 0;
 
     const handleTouchStart = (e: TouchEvent) => {
-      // Only trigger when at the very top of the page
       if (window.scrollY === 0 && window.pageYOffset === 0) {
         startY = e.touches[0].clientY;
-        startTime = Date.now();
         isPulling = true;
-        console.log('Profile: Touch start - pull to refresh initiated');
       }
     };
 
     const handleTouchMove = (e: TouchEvent) => {
       if (!isPulling || window.scrollY > 0) return;
-      
       currentY = e.touches[0].clientY;
       const distance = Math.max(0, currentY - startY);
-      
       if (distance > 0) {
         setPullToRefresh({ isPulling: true, distance: Math.min(distance, 100) });
-        console.log('Profile: Touch move - distance:', distance);
       }
     };
 
     const handleTouchEnd = () => {
       if (pullToRefresh.isPulling && pullToRefresh.distance > 50) {
-        // Trigger refresh
-        console.log('Profile: Touch end - triggering refresh');
         load({ silent: false });
       }
-      
       setPullToRefresh({ isPulling: false, distance: 0 });
       isPulling = false;
     };
 
-    // Touch events for mobile only
     document.addEventListener('touchstart', handleTouchStart, { passive: true });
     document.addEventListener('touchmove', handleTouchMove, { passive: true });
     document.addEventListener('touchend', handleTouchEnd, { passive: true });
@@ -156,7 +146,7 @@ export function Profile() {
       document.removeEventListener('touchmove', handleTouchMove as any);
       document.removeEventListener('touchend', handleTouchEnd as any);
     };
-  }, [pullToRefresh.isPulling, pullToRefresh.distance, isMobile]);
+  }, [isMobile, pullToRefresh.isPulling, pullToRefresh.distance]);
 
   const handleDeleted = (postId: string) => {
     setPosts(prev => prev.filter(p => p.id !== postId));

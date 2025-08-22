@@ -10,6 +10,7 @@ import { Select } from './ui/Select';
 import { t } from '../lib/translations';
 import { useLanguage } from '../hooks/useLanguage';
 import { hapticLight } from '../lib/haptics';
+import { ENABLE_PULL_TO_REFRESH } from '../lib/flags';
 
 export function Feed() {
   const [posts, setPosts] = useState<PostType[]>([]);
@@ -156,19 +157,20 @@ export function Feed() {
 
   // Pull-to-refresh via downward swipe at top (mobile only)
   useEffect(() => {
-    if (!isMobile) return; // Only enable on mobile devices
+    if (!isMobile || !ENABLE_PULL_TO_REFRESH) return;
     
     let startY = 0;
     let currentY = 0;
     let isPulling = false;
-    let startTime = 0;
-    let pullTimeout: NodeJS.Timeout | null = null;
+    let pullTimeout: number | null = null;
+
+    const pullStateRef = { get: () => pullToRefresh, set: (v: any) => setPullToRefresh(v) };
 
     const resetPullState = () => {
-      setPullToRefresh({ isPulling: false, distance: 0 });
+      pullStateRef.set({ isPulling: false, distance: 0 });
       isPulling = false;
       if (pullTimeout) {
-        clearTimeout(pullTimeout);
+        window.clearTimeout(pullTimeout);
         pullTimeout = null;
       }
     };
@@ -177,32 +179,26 @@ export function Feed() {
       // Only trigger when at the very top of the page
       if (window.scrollY === 0 && window.pageYOffset === 0) {
         startY = e.touches[0].clientY;
-        startTime = Date.now();
         isPulling = true;
-        console.log('Touch start - pull to refresh initiated');
       }
     };
 
     const handleTouchMove = (e: TouchEvent) => {
       if (!isPulling || window.scrollY > 0) return;
-      
       currentY = e.touches[0].clientY;
       const distance = Math.max(0, currentY - startY);
-      
       if (distance > 0) {
-        setPullToRefresh({ isPulling: true, distance: Math.min(distance, 100) });
-        console.log('Touch move - distance:', distance);
+        pullStateRef.set({ isPulling: true, distance: Math.min(distance, 100) });
       }
     };
 
     const handleTouchEnd = () => {
-      if (pullToRefresh.isPulling && pullToRefresh.distance > 50) {
+      const state = pullStateRef.get();
+      if (state.isPulling && state.distance > 50) {
         // Trigger refresh
-        console.log('Touch end - triggering refresh');
         hapticLight();
         loadPosts({ silent: false, reset: true });
       }
-      
       resetPullState();
     };
 
@@ -217,7 +213,7 @@ export function Feed() {
       document.removeEventListener('touchend', handleTouchEnd as any);
       resetPullState();
     };
-  }, [pullToRefresh.isPulling, pullToRefresh.distance, isMobile]);
+  }, [isMobile]);
 
   const handlePostCreated = () => {
     if (viewingReplies) {

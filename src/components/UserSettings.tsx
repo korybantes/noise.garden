@@ -211,8 +211,8 @@ export function UserSettings({ onClose }: UserSettingsProps) {
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-4 py-6">
-      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden">
+    <div className="w-full max-w-4xl mx-auto px-4 py-6 pb-24 md:pb-8">
+      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden max-h-[calc(100vh-80px)] flex flex-col">
         <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 p-4 z-10">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -256,7 +256,7 @@ export function UserSettings({ onClose }: UserSettingsProps) {
           </div>
               </div>
 
-        <div className="p-4 sm:p-6 pb-20 md:pb-6">
+        <div className="p-4 sm:p-6 pb-24 md:pb-8 overflow-y-auto">
           {/* Profile section */}
             {activeTab === 'profile' && (
               <div className="space-y-4">

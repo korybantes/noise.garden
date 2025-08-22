@@ -165,4 +165,4 @@ export function InvitePage() {
       </div>
     </div>
   );
-}
+} 
