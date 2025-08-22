@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { UserSettings } from './UserSettings';
 import { useTheme } from '../hooks/useTheme';
 import { useNavigation } from '../hooks/useNavigation';
+import { useRouter } from '../hooks/useRouter';
 import { AdminPanel } from './AdminPanel';
 import { ModeratorPanel } from './ModeratorPanel';
 import { Mentions } from './Mentions';
@@ -23,6 +24,7 @@ export function Header() {
   const [mentionsDisabled, setMentionsDisabled] = useState(false);
   const { theme, toggleTheme } = useTheme();
   const { setView, chatActive, view } = useNavigation();
+  const { navigateToFeed } = useRouter();
   const { language } = useLanguage();
   const { sendTestNotification } = useLocalNotifications();
   const { unreadCount } = useNotificationCount();
@@ -181,7 +183,7 @@ export function Header() {
             </div>
             
             <div className="hidden md:flex items-center gap-4">
-              <button onClick={() => setView('feed')} className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-mono text-sm transition-colors" title={t('feed', language)}><Home size={16} />{t('feed', language)}</button>
+              <button onClick={navigateToFeed} className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-mono text-sm transition-colors" title={t('feed', language)}><Home size={16} />{t('feed', language)}</button>
               <button onClick={() => setView('chat')} className="relative flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-mono text-sm transition-colors" title={t('anonymousChat', language)}>
                 {chatActive && <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full" />}
                 <MessageSquare size={16} />{t('chat', language)}

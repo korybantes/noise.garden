@@ -349,7 +349,7 @@ export function AuthForm() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Invite code</label>
-              <input value={invite} onChange={e => setInvite(e.target.value.toUpperCase())} className="mt-1 w-full rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-3 py-2 font-mono text-base" placeholder="XXX-XXX-XXX" maxLength={11} />
+              <input value={invite} onChange={e => setInvite(e.target.value.toUpperCase())} className="mt-1 w-full rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-3 py-2 font-mono text-base" placeholder="XXXX-XXXX-XXXX" maxLength={14} />
             </div>
             
             {/* Terms and Conditions */}

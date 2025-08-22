@@ -1,5 +1,6 @@
 import { Home, User, MessageSquare, Ticket, Shield } from 'lucide-react';
 import { useNavigation } from '../hooks/useNavigation';
+import { useRouter } from '../hooks/useRouter';
 import { useAuth } from '../hooks/useAuth';
 import { useState } from 'react';
 import { AdminPanel } from './AdminPanel';
@@ -11,6 +12,7 @@ import { hapticSelection } from '../lib/haptics';
 
 export function BottomNav() {
   const { view, setView, chatActive } = useNavigation();
+  const { navigateToFeed } = useRouter();
   const { user } = useAuth();
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [showModeratorPanel, setShowModeratorPanel] = useState(false);
@@ -20,6 +22,11 @@ export function BottomNav() {
   const onSelect = async (v: typeof view) => {
     if (v !== view) await hapticSelection();
     setView(v);
+  };
+
+  const onSelectFeed = async () => {
+    if (view !== 'feed') await hapticSelection();
+    navigateToFeed();
   };
 
   const btnClass = (active: boolean) => `flex flex-col items-center text-xs ${active ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-300'} px-3 py-2 active:opacity-80`;
@@ -57,7 +64,7 @@ export function BottomNav() {
     <>
       <nav className="fixed bottom-0 inset-x-0 md:hidden bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
         <div className="w-full max-w-2xl mx-auto flex items-center justify-around py-2 px-2">
-          <button onClick={() => onSelect('feed')} className={btnClass(view === 'feed')}>
+          <button onClick={onSelectFeed} className={btnClass(view === 'feed')}>
             <Home size={20} />
             {t('feed', language)}
           </button>
