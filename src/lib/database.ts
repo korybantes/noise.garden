@@ -112,6 +112,13 @@ export interface PopupThread {
 	created_at: Date;
 }
 
+// Helper function to notify UI of notification count changes
+function notifyNotificationCountChanged() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('notificationCountChanged'));
+  }
+}
+
 function generateInviteCode(): string {
 	const part = () => Math.random().toString(36).slice(2, 6).toUpperCase();
 	return `${part()}-${part()}-${part()}`;
@@ -440,6 +447,7 @@ export async function createPost(
 				INSERT INTO notifications (to_user_id, type, post_id, from_user_id, from_username)
 				VALUES (${parent[0].user_id}, 'reply', ${post.id}, ${userId}, ${user[0].username})
 			`;
+			notifyNotificationCountChanged();
 		}
 	}
 	
@@ -451,6 +459,7 @@ export async function createPost(
 				INSERT INTO notifications (to_user_id, type, post_id, from_user_id, from_username)
 				VALUES (${originalPost[0].user_id}, 'repost', ${post.id}, ${userId}, ${user[0].username})
 			`;
+			notifyNotificationCountChanged();
 		}
 	}
 	
@@ -923,6 +932,7 @@ export async function quarantinePost(postId: string, adminId: string): Promise<v
 			INSERT INTO notifications (to_user_id, type, post_id, from_user_id, from_username)
 			VALUES (${post[0].user_id}, 'quarantine', ${postId}, ${adminId}, ${admin[0].username})
 		`;
+		notifyNotificationCountChanged();
 	}
 }
 

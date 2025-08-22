@@ -29,8 +29,8 @@ export function NotificationsPage() {
   useEffect(() => {
     if (user) {
       loadNotifications();
-      // Poll for new notifications every 30 seconds
-      const interval = setInterval(loadNotifications, 30000);
+      // Poll for new notifications every 10 seconds (more responsive)
+      const interval = setInterval(loadNotifications, 10000);
       return () => clearInterval(interval);
     }
   }, [user]);

@@ -27,8 +27,8 @@ export function useNotificationCount() {
 
     loadCount();
 
-    // Poll for updates every 30 seconds
-    const interval = setInterval(loadCount, 30000);
+    // Poll for updates every 10 seconds (more responsive)
+    const interval = setInterval(loadCount, 10000);
     
     // Listen for notification count changes
     const handleNotificationCountChanged = () => {

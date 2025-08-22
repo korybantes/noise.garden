@@ -41,6 +41,9 @@ function AppContent() {
       setView('invite');
     } else if (route.name === 'notifications') {
       setView('notifications');
+    } else if (route.name === 'post') {
+      // For post routes, stay on feed view but let Feed handle the post
+      setView('feed');
     }
   }, [route.name, setView]);
 

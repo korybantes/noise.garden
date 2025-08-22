@@ -129,6 +129,9 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
               }
             })
           });
+          
+          // Notify header to refresh notification count for the recipient
+          window.dispatchEvent(new CustomEvent('notificationCountChanged'));
         } catch (error) {
           console.error('Failed to create notification:', error);
         }

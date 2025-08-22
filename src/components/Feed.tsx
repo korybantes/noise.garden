@@ -154,7 +154,7 @@ export function Feed() {
         setViewingReplies(null);
       }
     })();
-  }, [route?.name === 'post' ? (route as any).params?.id : '']);
+  }, [route.name, route.name === 'post' ? route.params.id : null]);
 
   // Pull-to-refresh via downward swipe at top (mobile only)
   useEffect(() => {
