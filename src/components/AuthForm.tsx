@@ -326,7 +326,7 @@ export function AuthForm() {
           </div>
         )}
 
-        {mode === 'signup' && (
+            {mode === 'signup' && (
           <>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Confirm Password</label>
@@ -436,14 +436,14 @@ export function AuthForm() {
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Backup code</label>
               <input value={backupCode} onChange={e => setBackupCode(e.target.value.toUpperCase())} className="mt-1 w-full rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-3 py-2 font-mono text-base" placeholder="XXXX-XXXX-XXXX" maxLength={19} />
-            </div>
+                </div>
             <div className="font-mono text-xs text-gray-600 dark:text-gray-400">Use your one-time backup code displayed at signup to recover your account.</div>
               </div>
             )}
 
         <button type="submit" disabled={loading || (mode==='signup' && (!altchaPayload || !acceptTerms || !acceptPrivacy || !acceptAge))} className="w-full inline-flex items-center justify-center px-4 py-2 rounded bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-60">
           {loading ? 'Please wait…' : (mode === 'login' ? 'Log in' : mode === 'signup' ? 'Create account' : 'Recover')}
-        </button>
+            </button>
 
         {mode === 'login' && (
           <div className="text-center">

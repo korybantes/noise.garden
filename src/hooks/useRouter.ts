@@ -5,6 +5,7 @@ export type Route =
   | { name: 'profile' }
   | { name: 'chat' }
   | { name: 'invite' }
+  | { name: 'notifications' }
   | { name: 'post'; params: { id: string } };
 
 function parseHash(hash: string): Route {
@@ -37,6 +38,9 @@ function parseHash(hash: string): Route {
   if (parts[0] === 'invite') {
     return { name: 'invite' };
   }
+  if (parts[0] === 'notifications') {
+    return { name: 'notifications' };
+  }
 
   return { name: 'feed' };
 }
@@ -45,7 +49,7 @@ interface RouterContextValue {
   route: Route;
   navigateToPost: (id: string) => void;
   navigateToFeed: () => void;
-  navigateToView: (view: 'feed' | 'profile' | 'chat' | 'invite') => void;
+  navigateToView: (view: 'feed' | 'profile' | 'chat' | 'invite' | 'notifications') => void;
 }
 
 const RouterContext = createContext<RouterContextValue | null>(null);
@@ -67,7 +71,7 @@ export function RouterProvider({ children }: { children: ReactNode }) {
     navigateToFeed: () => {
       window.location.hash = '';
     },
-    navigateToView: (view: 'feed' | 'profile' | 'chat' | 'invite') => {
+    navigateToView: (view: 'feed' | 'profile' | 'chat' | 'invite' | 'notifications') => {
       if (view === 'feed') {
         window.location.hash = '';
       } else {

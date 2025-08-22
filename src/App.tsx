@@ -9,6 +9,7 @@ import { BottomNav } from './components/BottomNav';
 import { Profile } from './components/Profile';
 import { ChatWindow } from './components/ChatWindow';
 import { InvitePage } from './components/InvitePage';
+import { NotificationsPage } from './components/NotificationsPage';
 import { Footer } from './components/Footer';
 import { RouterProvider, useRouter } from './hooks/useRouter';
 import { OnboardingBackupCodes } from './components/OnboardingBackupCodes';
@@ -38,6 +39,8 @@ function AppContent() {
       setView('chat');
     } else if (route.name === 'invite') {
       setView('invite');
+    } else if (route.name === 'notifications') {
+      setView('notifications');
     }
   }, [route.name, setView]);
 
@@ -100,6 +103,7 @@ function AppContent() {
          view === 'profile' ? <Profile /> : 
          view === 'chat' ? <ChatWindow onClose={() => {}} /> :
          view === 'invite' ? <InvitePage /> :
+         view === 'notifications' ? <NotificationsPage /> :
          view === 'settings' ? <UserSettings /> : <Feed />}
         </div>
         

@@ -1,6 +1,6 @@
 import { createContext, useContext, useMemo, useState, ReactNode, createElement, useEffect, useRef } from 'react';
 
-type View = 'feed' | 'profile' | 'chat' | 'invite' | 'settings';
+type View = 'feed' | 'profile' | 'chat' | 'invite' | 'settings' | 'notifications';
 
 interface NavigationContextValue {
   view: View;
@@ -35,7 +35,7 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
   const lastView = useRef<View>(view);
 
   useEffect(() => {
-    const order: View[] = ['feed', 'profile', 'chat', 'invite'];
+    const order: View[] = ['feed', 'profile', 'chat', 'invite', 'notifications'];
     const SWIPE_THRESHOLD = 80;
     const SWIPE_DEADZONE = 20;
     const VERTICAL_DEADZONE = 30; // Allow vertical scrolling

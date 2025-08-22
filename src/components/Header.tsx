@@ -4,16 +4,15 @@ import { useAuth } from '../hooks/useAuth';
 import { UserSettings } from './UserSettings';
 import { useTheme } from '../hooks/useTheme';
 import { useNavigation } from '../hooks/useNavigation';
-import { Notifications } from './Notifications';
 import { AdminPanel } from './AdminPanel';
 import { ModeratorPanel } from './ModeratorPanel';
 import { Mentions } from './Mentions';
-import { NotificationCenter } from './NotificationCenter';
 import { getPendingMentions } from '../lib/database';
 import { t } from '../lib/translations';
 import { useLanguage } from '../hooks/useLanguage';
 import { loadFeedSettings } from '../lib/settings';
 import { useLocalNotifications } from '../hooks/useLocalNotifications';
+import { useNotificationCount } from '../hooks/useNotificationCount';
 
 export function Header() {
   const { user, logout } = useAuth();
@@ -26,6 +25,7 @@ export function Header() {
   const { setView, chatActive, view } = useNavigation();
   const { language } = useLanguage();
   const { sendTestNotification } = useLocalNotifications();
+  const { unreadCount } = useNotificationCount();
   const [isMobile, setIsMobile] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
@@ -162,12 +162,22 @@ export function Header() {
                 )}
               </button>
               )}
+              <button 
+                onClick={() => setView('notifications')} 
+                className="relative text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors" 
+                title={language === 'tr' ? 'Bildirimler' : 'Notifications'}
+              >
+                <Bell size={16} />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-mono font-bold shadow-sm">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
               <button onClick={toggleTheme} className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"><span className="sr-only">theme</span>{theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}</button>
               <button onClick={() => setView('settings')} className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors" title={t('settings', language)}>
                 <Settings size={16} />
               </button>
-              <Notifications />
-              <NotificationCenter />
             </div>
             
             <div className="hidden md:flex items-center gap-4">
@@ -183,8 +193,19 @@ export function Header() {
               {user.role === 'moderator' && (
                 <button onClick={() => setShowModeratorPanel(true)} className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-mono text-sm transition-colors" title={language === 'tr' ? 'Moderatör Paneli' : 'Moderator Panel'}><Shield size={16} />{language === 'tr' ? 'moderatör' : 'moderator'}</button>
               )}
-              <Notifications />
-              <NotificationCenter />
+              <button 
+                onClick={() => setView('notifications')} 
+                className="relative flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-mono text-sm transition-colors" 
+                title={language === 'tr' ? 'Bildirimler' : 'Notifications'}
+              >
+                <Bell size={16} />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-mono font-bold shadow-sm">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+                {language === 'tr' ? 'bildirimler' : 'notifications'}
+              </button>
               {!mentionsDisabled && (
               <button onClick={handleOpenMentions} className="relative flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-mono text-sm transition-colors" title={t('mentions', language)}>
                 <AtSign size={16} />

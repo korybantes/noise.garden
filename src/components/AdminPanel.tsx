@@ -73,7 +73,7 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
   const [showBanModal, setShowBanModal] = useState<{ show: boolean; userId: string; username: string }>({ show: false, userId: '', username: '' });
   const [banReason, setBanReason] = useState('');
   const [banning, setBanning] = useState(false);
-  const [activeTab, setActiveTab] = useState<'users' | 'reports' | 'banned' | 'muted' | 'invites'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'reports' | 'banned' | 'muted' | 'invites' | 'feedback'>('users');
   const [generatingInvite, setGeneratingInvite] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState('');
@@ -89,6 +89,20 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
   const [muteTarget, setMuteTarget] = useState<User | null>(null);
   const [muteReason, setMuteReason] = useState('');
   const [muteDuration, setMuteDuration] = useState(24);
+  const [feedbackTickets, setFeedbackTickets] = useState<Array<{
+    id: string;
+    user_id: string;
+    username: string;
+    type: 'feedback' | 'bug_report' | 'support' | 'feature_request';
+    title: string;
+    description: string;
+    status: 'open' | 'in_progress' | 'resolved' | 'closed';
+    priority: 'low' | 'medium' | 'high' | 'urgent';
+    created_at: Date;
+    updated_at: Date;
+    assigned_to?: string;
+    assigned_username?: string;
+  }>>([]);
 
   useEffect(() => {
     if (!user) return;
@@ -100,13 +114,14 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
     setLoading(true);
     setError('');
     try {
-      const [usersData, statsData, bannedData, mutedData, flaggedData, invitesData] = await Promise.all([
+      const [usersData, statsData, bannedData, mutedData, flaggedData, invitesData, feedbackData] = await Promise.all([
         getAllUsers(user.userId),
         getUserStats(user.userId),
         getBannedUsers(user.userId),
         getMutedUsers(user.userId),
         loadFlaggedPosts(),
-        loadInvites()
+        loadInvites(),
+        loadFeedbackTickets()
       ]);
       setUsers(usersData);
       setStats(statsData);
@@ -114,6 +129,7 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
       setMutedUsers(mutedData);
       setFlaggedPosts(flaggedData);
       setInvites(invitesData);
+      setFeedbackTickets(feedbackData);
     } catch (err) {
       setError('Failed to load data');
       console.error(err);
@@ -171,6 +187,33 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
       return result.invites || [];
     } catch (error) {
       console.error('Error loading invites:', error);
+      return [];
+    }
+  };
+
+  const loadFeedbackTickets = async () => {
+    if (!user) return [];
+    try {
+      const response = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        },
+        body: JSON.stringify({
+          action: 'getFeedbackTickets',
+          args: {}
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to load feedback tickets');
+      }
+
+      const result = await response.json();
+      return result.tickets || [];
+    } catch (error) {
+      console.error('Error loading feedback tickets:', error);
       return [];
     }
   };
@@ -242,6 +285,8 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
       setFlaggedPosts(prev => prev.map(p => 
         p.id === postId ? { ...p, is_quarantined: true } : p
       ));
+      setSuccessMessage('Post quarantined successfully');
+      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (err) {
       setError('Failed to quarantine post');
       console.error(err);
@@ -271,8 +316,68 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
       setFlaggedPosts(prev => prev.map(p => 
         p.id === postId ? { ...p, is_quarantined: false } : p
       ));
+      setSuccessMessage('Post unquarantined successfully');
+      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (err) {
       setError('Failed to unquarantine post');
+      console.error(err);
+    }
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    if (!user) return;
+    try {
+      const response = await fetch('/api/app', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        },
+        body: JSON.stringify({
+          action: 'deletePost',
+          args: { postId }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete post');
+      }
+
+      // Remove from local state
+      setFlaggedPosts(prev => prev.filter(p => p.id !== postId));
+      setSuccessMessage('Post deleted successfully');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (err) {
+      setError('Failed to delete post');
+      console.error(err);
+    }
+  };
+
+  const handleDismissReport = async (postId: string) => {
+    if (!user) return;
+    try {
+      const response = await fetch('/api/community-health', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        },
+        body: JSON.stringify({
+          action: 'dismissReport',
+          args: { postId }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to dismiss report');
+      }
+
+      // Remove from local state
+      setFlaggedPosts(prev => prev.filter(p => p.id !== postId));
+      setSuccessMessage('Report dismissed successfully');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (err) {
+      setError('Failed to dismiss report');
       console.error(err);
     }
   };
@@ -377,6 +482,13 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
           <span className="inline-flex items-center gap-1 text-xs font-mono text-amber-600 dark:text-amber-400">
             <ShieldAlert size={12} />
             Moderator
+          </span>
+        );
+      case 'community_manager':
+        return (
+          <span className="inline-flex items-center gap-1 text-xs font-mono text-blue-600 dark:text-blue-400">
+            <Users size={12} />
+            Community Manager
           </span>
         );
       default:
@@ -486,6 +598,25 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
                 {invites.length > 0 && (
                   <span className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs px-1.5 sm:px-2 py-0.5 rounded-full">
                     {invites.length}
+                  </span>
+                )}
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('feedback')}
+              className={`px-2 sm:px-4 py-2 font-mono text-xs sm:text-sm transition-colors ${
+                activeTab === 'feedback'
+                  ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
+              }`}
+            >
+              <div className="flex items-center gap-1 sm:gap-2">
+                <Bell size={14} className="sm:w-4 sm:h-4" />
+                <span className="hidden sm:inline">{language === 'tr' ? 'Geri Bildirimler' : 'Feedback'}</span>
+                <span className="sm:hidden">{language === 'tr' ? 'Geri Bildirimler' : 'Feedback'}</span>
+                {feedbackTickets.filter(t => t.status === 'open').length > 0 && (
+                  <span className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs px-1.5 sm:px-2 py-0.5 rounded-full">
+                    {feedbackTickets.filter(t => t.status === 'open').length}
                   </span>
                 )}
               </div>
@@ -613,6 +744,7 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
                               >
                                 <option value="user">user</option>
                                 <option value="moderator">moderator</option>
+                                <option value="community_manager">community manager</option>
                                 <option value="admin">admin</option>
                               </select>
                             )}
@@ -755,6 +887,24 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
                                 Quarantine
                               </button>
                             )}
+                            
+                            <button
+                              onClick={() => handleDeletePost(post.id)}
+                              className="text-xs font-mono bg-red-800 text-white px-2 py-1 rounded hover:bg-red-900 transition-colors"
+                              title="Delete post permanently"
+                            >
+                              <X size={12} />
+                              Delete
+                            </button>
+                            
+                            <button
+                              onClick={() => handleDismissReport(post.id)}
+                              className="text-xs font-mono bg-gray-600 text-white px-2 py-1 rounded hover:bg-gray-700 transition-colors"
+                              title="Dismiss report"
+                            >
+                              <Check size={12} />
+                              Dismiss
+                            </button>
                             
                             <button
                               onClick={() => openMuteModal({ 
@@ -932,6 +1082,70 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
                                 )}
                               </button>
                             )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Feedback Section */}
+            {activeTab === 'feedback' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-mono text-lg font-semibold text-gray-900 dark:text-gray-100">Feedback Tickets</h3>
+                  <button
+                    onClick={loadData}
+                    disabled={loading}
+                    className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-mono text-sm transition-colors disabled:opacity-50"
+                  >
+                    <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+                    refresh
+                  </button>
+                </div>
+
+                {loading ? (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400 font-mono">
+                    loading feedback tickets...
+                  </div>
+                ) : feedbackTickets.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400 font-mono">
+                    {language === 'tr' ? 'Henüz geri bildirim alınmadı.' : 'No feedback tickets yet.'}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {feedbackTickets.map((ticket) => (
+                      <div
+                        key={ticket.id}
+                        className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg border border-purple-200 dark:border-purple-800"
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="font-mono text-sm text-gray-900 dark:text-gray-100">
+                            {ticket.title}
+                          </div>
+                          <div className="text-xs text-gray-600 dark:text-gray-400">
+                            {new Date(ticket.created_at).toLocaleDateString()}
+                          </div>
+                        </div>
+                        <div className="text-sm text-gray-900 dark:text-gray-100 font-mono">
+                          {ticket.description}
+                        </div>
+                        <div className="flex items-center justify-between mt-3">
+                          <div className="text-xs text-gray-600 dark:text-gray-400">
+                            {ticket.type === 'bug_report' ? 'Bug Report' : ticket.type === 'feature_request' ? 'Feature Request' : ticket.type}
+                          </div>
+                          <div className="text-xs text-gray-600 dark:text-gray-400">
+                            Status: {ticket.status}
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between mt-3">
+                          <div className="text-xs text-gray-600 dark:text-gray-400">
+                            Priority: {ticket.priority}
+                          </div>
+                          <div className="text-xs text-gray-600 dark:text-gray-400">
+                            Assigned to: {ticket.assigned_username || 'Unassigned'}
                           </div>
                         </div>
                       </div>

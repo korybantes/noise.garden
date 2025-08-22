@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { X, Flag, Eye, EyeOff, Unlock, RefreshCw, ShieldAlert, MicOff, Mic, Key, Copy, Check } from 'lucide-react';
+import { X, Flag, Eye, EyeOff, Unlock, RefreshCw, Users, MessageSquare, MicOff, Mic, Check, Trash2, MessageCircle, AlertCircle } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
-import { getBannedUsers, banUser, unbanUser, muteUser, unmuteUser, getMutedUsers, createAdminInvite } from '../lib/database';
+import { getBannedUsers, banUser, unbanUser, muteUser, unmuteUser, getMutedUsers } from '../lib/database';
 import { useLanguage } from '../hooks/useLanguage';
 
-interface ModeratorPanelProps {
+interface CommunityManagerPanelProps {
   onClose: () => void;
 }
 
@@ -40,25 +40,31 @@ interface FlaggedPost {
   flag_count: number;
 }
 
-interface Invite {
-  code: string;
-  created_by: string;
+interface FeedbackTicket {
+  id: string;
+  user_id: string;
+  username: string;
+  type: 'feedback' | 'bug_report' | 'support' | 'feature_request';
+  title: string;
+  description: string;
+  status: 'open' | 'in_progress' | 'resolved' | 'closed';
+  priority: 'low' | 'medium' | 'high' | 'urgent';
   created_at: Date;
-  used_by?: string | null;
-  used_at?: Date | null;
-  used_by_username?: string | null;
+  updated_at: Date;
+  assigned_to?: string;
+  assigned_username?: string;
 }
 
-export function ModeratorPanel({ onClose }: ModeratorPanelProps) {
+export function CommunityManagerPanel({ onClose }: CommunityManagerPanelProps) {
   const { user } = useAuth();
   const { language } = useLanguage();
   const [bannedUsers, setBannedUsers] = useState<BannedUser[]>([]);
   const [flaggedPosts, setFlaggedPosts] = useState<FlaggedPost[]>([]);
-  const [invites, setInvites] = useState<Invite[]>([]);
+  const [feedbackTickets, setFeedbackTickets] = useState<FeedbackTicket[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-  const [activeTab, setActiveTab] = useState<'reports' | 'banned' | 'muted' | 'invites'>('reports');
+  const [activeTab, setActiveTab] = useState<'reports' | 'feedback' | 'banned' | 'muted'>('reports');
   const [showBanModal, setShowBanModal] = useState<{ show: boolean; userId: string; username: string }>({ show: false, userId: '', username: '' });
   const [banReason, setBanReason] = useState('');
   const [banning, setBanning] = useState(false);
@@ -74,8 +80,6 @@ export function ModeratorPanel({ onClose }: ModeratorPanelProps) {
   const [muteTarget, setMuteTarget] = useState<{ id: string; username: string } | null>(null);
   const [muteReason, setMuteReason] = useState('');
   const [muteDuration, setMuteDuration] = useState(24);
-  const [generatingInvite, setGeneratingInvite] = useState(false);
-  const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -87,16 +91,16 @@ export function ModeratorPanel({ onClose }: ModeratorPanelProps) {
     setLoading(true);
     setError('');
     try {
-      const [bannedData, mutedData, flaggedData, invitesData] = await Promise.all([
+      const [bannedData, mutedData, flaggedData, feedbackData] = await Promise.all([
         getBannedUsers(user.userId),
         getMutedUsers(user.userId),
         loadFlaggedPosts(),
-        loadInvites()
+        loadFeedbackTickets()
       ]);
       setBannedUsers(bannedData);
       setMutedUsers(mutedData);
       setFlaggedPosts(flaggedData);
-      setInvites(invitesData);
+      setFeedbackTickets(feedbackData);
     } catch (err) {
       setError('Failed to load data');
       console.error(err);
@@ -131,29 +135,28 @@ export function ModeratorPanel({ onClose }: ModeratorPanelProps) {
     }
   };
 
-  const loadInvites = async () => {
-    if (!user) return [];
+  const loadFeedbackTickets = async () => {
     try {
-      const response = await fetch('/api/invites', {
+      const response = await fetch('/api/feedback', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
         },
         body: JSON.stringify({
-          action: 'getInvitesCreatedBy',
-          args: { userId: user.userId }
+          action: 'getFeedbackTickets',
+          args: {}
         })
       });
 
       if (!response.ok) {
-        throw new Error('Failed to load invites');
+        throw new Error('Failed to load feedback tickets');
       }
 
       const result = await response.json();
-      return result.invites || [];
+      return result.tickets || [];
     } catch (error) {
-      console.error('Error loading invites:', error);
+      console.error('Error loading feedback tickets:', error);
       return [];
     }
   };
@@ -163,7 +166,6 @@ export function ModeratorPanel({ onClose }: ModeratorPanelProps) {
     setBanning(true);
     try {
       await banUser(showBanModal.userId, banReason.trim(), user.userId);
-      // Refresh data
       await loadData();
       setShowBanModal({ show: false, userId: '', username: '' });
       setBanReason('');
@@ -181,7 +183,6 @@ export function ModeratorPanel({ onClose }: ModeratorPanelProps) {
     if (!user) return;
     try {
       await unbanUser(userId, user.userId);
-      // Refresh data
       await loadData();
       setSuccessMessage('User unbanned successfully');
       setTimeout(() => setSuccessMessage(''), 3000);
@@ -210,7 +211,6 @@ export function ModeratorPanel({ onClose }: ModeratorPanelProps) {
         throw new Error('Failed to quarantine post');
       }
 
-      // Update local state
       setFlaggedPosts(prev => prev.map(p => 
         p.id === postId ? { ...p, is_quarantined: true } : p
       ));
@@ -241,7 +241,6 @@ export function ModeratorPanel({ onClose }: ModeratorPanelProps) {
         throw new Error('Failed to unquarantine post');
       }
 
-      // Update local state
       setFlaggedPosts(prev => prev.map(p => 
         p.id === postId ? { ...p, is_quarantined: false } : p
       ));
@@ -249,35 +248,6 @@ export function ModeratorPanel({ onClose }: ModeratorPanelProps) {
       setTimeout(() => setSuccessMessage(''), 3000);
     } catch (err) {
       setError('Failed to unquarantine post');
-      console.error(err);
-    }
-  };
-
-  const handleDeletePost = async (postId: string) => {
-    if (!user) return;
-    try {
-      const response = await fetch('/api/app', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-        },
-        body: JSON.stringify({
-          action: 'deletePost',
-          args: { postId }
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete post');
-      }
-
-      // Remove from local state
-      setFlaggedPosts(prev => prev.filter(p => p.id !== postId));
-      setSuccessMessage('Post deleted successfully');
-      setTimeout(() => setSuccessMessage(''), 3000);
-    } catch (err) {
-      setError('Failed to delete post');
       console.error(err);
     }
   };
@@ -301,25 +271,12 @@ export function ModeratorPanel({ onClose }: ModeratorPanelProps) {
         throw new Error('Failed to dismiss report');
       }
 
-      // Remove from local state
       setFlaggedPosts(prev => prev.filter(p => p.id !== postId));
       setSuccessMessage('Report dismissed successfully');
       setTimeout(() => setSuccessMessage(''), 3000);
     } catch (err) {
       setError('Failed to dismiss report');
       console.error(err);
-    }
-  };
-
-  const handleUnban = async (userId: string) => {
-    if (!user) return;
-    try {
-      await unbanUser(userId, user.userId);
-      await loadData();
-      setSuccessMessage('User unbanned successfully');
-      setTimeout(() => setSuccessMessage(''), 3000);
-    } catch (error) {
-      console.error('Failed to unban user:', error);
     }
   };
 
@@ -351,43 +308,34 @@ export function ModeratorPanel({ onClose }: ModeratorPanelProps) {
     }
   };
 
-  const handleGenerateInvite = async () => {
+  const handleUpdateTicketStatus = async (ticketId: string, status: string) => {
     if (!user) return;
-    setGeneratingInvite(true);
     try {
-      const response = await createAdminInvite(user.userId);
-      // Map the database response to our interface format
-      const newInvite: Invite = {
-        code: response.code,
-        created_by: response.created_by,
-        created_at: response.created_at,
-        used_by: response.used_by,
-        used_at: response.used_at,
-        used_by_username: null
-      };
-      setInvites(prev => [...prev, newInvite]);
-      setCopiedCode(response.code);
-      // Auto-copy to clipboard
-      navigator.clipboard.writeText(response.code);
-      // Show success message
-      setError(''); // Clear any previous errors
-      setSuccessMessage('Invite generated successfully!');
-      setTimeout(() => setSuccessMessage(''), 5000); // Hide after 5 seconds
-    } catch (err) {
-      setError('Failed to generate invite');
-      console.error(err);
-    } finally {
-      setGeneratingInvite(false);
-    }
-  };
+      const response = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        },
+        body: JSON.stringify({
+          action: 'updateTicketStatus',
+          args: { ticketId, status }
+        })
+      });
 
-  const handleCopyInviteCode = (code: string) => {
-    navigator.clipboard.writeText(code).then(() => {
-      setCopiedCode(code);
-      setTimeout(() => setCopiedCode(null), 2000);
-    }).catch(err => {
-      console.error('Failed to copy invite code:', err);
-    });
+      if (!response.ok) {
+        throw new Error('Failed to update ticket status');
+      }
+
+      setFeedbackTickets(prev => prev.map(t => 
+        t.id === ticketId ? { ...t, status: status as any } : t
+      ));
+      setSuccessMessage('Ticket status updated successfully');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (err) {
+      setError('Failed to update ticket status');
+      console.error(err);
+    }
   };
 
   const openMuteModal = (userItem: { id: string; username: string }) => {
@@ -395,19 +343,39 @@ export function ModeratorPanel({ onClose }: ModeratorPanelProps) {
     setShowMuteModal(true);
   };
 
-  if (!user || user.role !== 'moderator') {
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'urgent': return 'text-red-600 bg-red-100 dark:bg-red-900/30';
+      case 'high': return 'text-orange-600 bg-orange-100 dark:bg-orange-900/30';
+      case 'medium': return 'text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30';
+      case 'low': return 'text-green-600 bg-green-100 dark:bg-green-900/30';
+      default: return 'text-gray-600 bg-gray-100 dark:bg-gray-900/30';
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'open': return 'text-blue-600 bg-blue-100 dark:bg-blue-900/30';
+      case 'in_progress': return 'text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30';
+      case 'resolved': return 'text-green-600 bg-green-100 dark:bg-green-900/30';
+      case 'closed': return 'text-gray-600 bg-gray-100 dark:bg-gray-900/30';
+      default: return 'text-gray-600 bg-gray-100 dark:bg-gray-900/30';
+    }
+  };
+
+  if (!user || user.role !== 'community_manager') {
     return null;
   }
 
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-4">
-        <div className="w-full max-w-4xl max-h-[90vh] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow overflow-hidden">
+        <div className="w-full max-w-6xl max-h-[90vh] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow overflow-hidden">
           <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200 dark:border-gray-800">
             <div className="flex items-center gap-2">
-              <ShieldAlert className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600 dark:text-amber-400" />
+              <Users className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400" />
               <h2 className="font-mono text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100">
-                {language === 'tr' ? 'Moderatör Paneli' : 'Moderator Panel'}
+                {language === 'tr' ? 'Topluluk Yöneticisi Paneli' : 'Community Manager Panel'}
               </h2>
             </div>
             <button
@@ -418,7 +386,7 @@ export function ModeratorPanel({ onClose }: ModeratorPanelProps) {
             </button>
           </div>
 
-          {/* Tab Navigation - Mobile Responsive */}
+          {/* Tab Navigation */}
           <div className="flex flex-wrap border-b border-gray-200 dark:border-gray-800">
             <button
               onClick={() => setActiveTab('reports')}
@@ -435,6 +403,25 @@ export function ModeratorPanel({ onClose }: ModeratorPanelProps) {
                 {flaggedPosts.length > 0 && (
                   <span className="bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-xs px-1.5 sm:px-2 py-0.5 rounded-full">
                     {flaggedPosts.length}
+                  </span>
+                )}
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('feedback')}
+              className={`px-2 sm:px-4 py-2 font-mono text-xs sm:text-sm transition-colors ${
+                activeTab === 'feedback'
+                  ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
+              }`}
+            >
+              <div className="flex items-center gap-1 sm:gap-2">
+                <MessageCircle size={14} className="sm:w-4 sm:h-4" />
+                <span className="hidden sm:inline">{language === 'tr' ? 'Geri Bildirim' : 'Feedback'}</span>
+                <span className="sm:hidden">{language === 'tr' ? 'Geri Bildirim' : 'Feedback'}</span>
+                {feedbackTickets.filter(t => t.status === 'open').length > 0 && (
+                  <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs px-1.5 sm:px-2 py-0.5 rounded-full">
+                    {feedbackTickets.filter(t => t.status === 'open').length}
                   </span>
                 )}
               </div>
@@ -460,25 +447,6 @@ export function ModeratorPanel({ onClose }: ModeratorPanelProps) {
             >
               <span className="hidden sm:inline">{language === 'tr' ? 'Susturulmuş Kullanıcılar' : 'Muted Users'}</span>
               <span className="sm:hidden">{language === 'tr' ? 'Susturulmuş' : 'Muted'}</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('invites')}
-              className={`px-2 sm:px-4 py-2 font-mono text-xs sm:text-sm transition-colors ${
-                activeTab === 'invites'
-                  ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
-              }`}
-            >
-              <div className="flex items-center gap-1 sm:gap-2">
-                <Key size={14} className="sm:w-4 sm:h-4" />
-                <span className="hidden sm:inline">{language === 'tr' ? 'Davetler' : 'Invites'}</span>
-                <span className="sm:hidden">{language === 'tr' ? 'Davetler' : 'Invites'}</span>
-                {invites.length > 0 && (
-                  <span className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs px-1.5 sm:px-2 py-0.5 rounded-full">
-                    {invites.length}
-                  </span>
-                )}
-              </div>
             </button>
           </div>
 
@@ -605,15 +573,6 @@ export function ModeratorPanel({ onClose }: ModeratorPanelProps) {
                             )}
                             
                             <button
-                              onClick={() => handleDeletePost(post.id)}
-                              className="text-xs font-mono bg-red-800 text-white px-2 py-1 rounded hover:bg-red-900 transition-colors"
-                              title={language === 'tr' ? 'Gönderiyi kalıcı olarak sil' : 'Delete post permanently'}
-                            >
-                              <X size={12} />
-                              {language === 'tr' ? 'Sil' : 'Delete'}
-                            </button>
-                            
-                            <button
                               onClick={() => handleDismissReport(post.id)}
                               className="text-xs font-mono bg-gray-600 text-white px-2 py-1 rounded hover:bg-gray-700 transition-colors"
                               title={language === 'tr' ? 'Raporu reddet' : 'Dismiss report'}
@@ -630,6 +589,94 @@ export function ModeratorPanel({ onClose }: ModeratorPanelProps) {
                               <MicOff size={12} />
                               {language === 'tr' ? 'Sustur' : 'Mute'}
                             </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Feedback Section */}
+            {activeTab === 'feedback' && (
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <h3 className="font-mono text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100">
+                    {language === 'tr' ? 'Geri Bildirim ve Destek' : 'Feedback & Support'}
+                  </h3>
+                  <button
+                    onClick={loadData}
+                    disabled={loading}
+                    className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-mono text-xs sm:text-sm transition-colors disabled:opacity-50"
+                  >
+                    <RefreshCw size={14} className={`sm:w-4 sm:h-4 ${loading ? 'animate-spin' : ''}`} />
+                    {language === 'tr' ? 'yenile' : 'refresh'}
+                  </button>
+                </div>
+
+                {loading ? (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400 font-mono text-sm">
+                    {language === 'tr' ? 'geri bildirim yükleniyor...' : 'loading feedback...'}
+                  </div>
+                ) : feedbackTickets.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400 font-mono text-sm">
+                    {language === 'tr' ? 'Geri bildirim bulunamadı' : 'No feedback tickets found'}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {feedbackTickets.map((ticket) => (
+                      <div
+                        key={ticket.id}
+                        className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700"
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <div className="font-mono text-sm text-gray-900 dark:text-gray-100">
+                              {ticket.title}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              {language === 'tr' ? 'Gönderen' : 'From'} @{ticket.username} • {new Date(ticket.created_at).toLocaleDateString()}
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs font-mono px-2 py-1 rounded ${getPriorityColor(ticket.priority)}`}>
+                              {ticket.priority}
+                            </span>
+                            <span className={`text-xs font-mono px-2 py-1 rounded ${getStatusColor(ticket.status)}`}>
+                              {ticket.status.replace('_', ' ')}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <div className="mb-3">
+                          <div className="text-sm text-gray-700 dark:text-gray-300">
+                            {ticket.description}
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            {language === 'tr' ? 'Tür' : 'Type'}: {ticket.type.replace('_', ' ')}
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center justify-between">
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            {ticket.assigned_username && (
+                              <span>{language === 'tr' ? 'Atanan' : 'Assigned to'} @{ticket.assigned_username}</span>
+                            )}
+                          </div>
+                          
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={ticket.status}
+                              onChange={(e) => handleUpdateTicketStatus(ticket.id, e.target.value)}
+                              className="text-xs font-mono bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-2 py-1 text-gray-900 dark:text-gray-100"
+                            >
+                              <option value="open">Open</option>
+                              <option value="in_progress">In Progress</option>
+                              <option value="resolved">Resolved</option>
+                              <option value="closed">Closed</option>
+                            </select>
                           </div>
                         </div>
                       </div>
@@ -726,80 +773,6 @@ export function ModeratorPanel({ onClose }: ModeratorPanelProps) {
             {activeTab === 'muted' && mutedUsers.length === 0 && (
               <div className="text-center py-8 text-gray-500 dark:text-gray-400 font-mono text-sm">
                 {language === 'tr' ? 'Susturulmuş kullanıcı bulunamadı' : 'No muted users found'}
-              </div>
-            )}
-
-            {/* Invites Section */}
-            {activeTab === 'invites' && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-mono text-lg font-semibold text-gray-900 dark:text-gray-100">
-                    {language === 'tr' ? 'Davetleri Yönet' : 'Manage Invites'}
-                  </h3>
-                  <button
-                    onClick={handleGenerateInvite}
-                    disabled={generatingInvite}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md font-mono text-sm hover:bg-blue-700 transition-colors disabled:opacity-50"
-                  >
-                    <Key size={16} />
-                    {generatingInvite ? (language === 'tr' ? 'Oluşturuluyor...' : 'Generating...') : (language === 'tr' ? 'Yeni Davet Oluştur' : 'Generate New Invite')}
-                  </button>
-                </div>
-
-                {loading ? (
-                  <div className="text-center py-8 text-gray-500 dark:text-gray-400 font-mono">
-                    {language === 'tr' ? 'davetler yükleniyor...' : 'loading invites...'}
-                  </div>
-                ) : invites.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500 dark:text-gray-400 font-mono">
-                    {language === 'tr' ? 'Henüz davet oluşturulmadı.' : 'No invites generated yet.'}
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {invites.map((invite) => (
-                      <div
-                        key={invite.code}
-                        className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="font-mono text-sm text-gray-900 dark:text-gray-100">
-                              {language === 'tr' ? 'Davet Kodu' : 'Invite Code'}: {invite.code}
-                            </div>
-                            <div className="text-xs text-gray-600 dark:text-gray-400">
-                              {language === 'tr' ? 'Oluşturuldu' : 'Created'}: {new Date(invite.created_at).toLocaleDateString()}
-                            </div>
-                            {invite.used_by && (
-                              <div className="text-xs text-green-600 dark:text-green-400 mt-1">
-                                {language === 'tr' ? 'Kullanan' : 'Used by'}: @{invite.used_by_username || (language === 'tr' ? 'Bilinmeyen Kullanıcı' : 'Unknown User')}
-                              </div>
-                            )}
-                            {!invite.used_by && (
-                              <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                                {language === 'tr' ? 'Kullanıma hazır' : 'Available for use'}
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {!invite.used_by && (
-                              <button
-                                onClick={() => handleCopyInviteCode(invite.code)}
-                                className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                                title={language === 'tr' ? 'Davet kodunu kopyala' : 'Copy invite code'}
-                              >
-                                {copiedCode === invite.code ? (
-                                  <Check size={16} className="text-green-600" />
-                                ) : (
-                                  <Copy size={16} />
-                                )}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             )}
           </div>

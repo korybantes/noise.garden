@@ -8,6 +8,7 @@ import { FeedSettings as FS, loadFeedSettings, saveFeedSettings } from '../lib/s
 import { t } from '../lib/translations';
 import { useLanguage } from '../hooks/useLanguage';
 import { useNavigation } from '../hooks/useNavigation';
+import { FeedbackTab } from './FeedbackTab';
 
 interface UserSettingsProps {
   onClose?: () => void;
@@ -24,7 +25,7 @@ export function UserSettings({ onClose }: UserSettingsProps) {
   const [loading, setLoading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState('');
   const [bio, setBio] = useState('');
-  const [activeTab, setActiveTab] = useState<'profile' | 'feed' | 'language' | 'mobile' | 'privacy' | 'security'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'feed' | 'language' | 'mobile' | 'privacy' | 'security' | 'support'>('profile');
   const [settings, setSettings] = useState<FS>(() => loadFeedSettings());
   const [mutedInput, setMutedInput] = useState('');
   const [language, setLanguage] = useState<'en' | 'tr'>(settings.language);
@@ -237,6 +238,7 @@ export function UserSettings({ onClose }: UserSettingsProps) {
               <button onClick={() => setActiveTab('mobile')} className={`px-3 py-1.5 rounded font-mono text-xs whitespace-nowrap flex-shrink-0 ${activeTab==='mobile' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}>Mobile</button>
               <button onClick={() => setActiveTab('privacy')} className={`px-3 py-1.5 rounded font-mono text-xs whitespace-nowrap flex-shrink-0 ${activeTab==='privacy' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}>Privacy</button>
               <button onClick={() => setActiveTab('security')} className={`px-3 py-1.5 rounded font-mono text-xs whitespace-nowrap flex-shrink-0 ${activeTab==='security' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}>Security</button>
+              <button onClick={() => setActiveTab('support')} className={`px-3 py-1.5 rounded font-mono text-xs whitespace-nowrap flex-shrink-0 ${activeTab==='support' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}>Support</button>
             </div>
             {/* Scroll indicator for mobile */}
             {isMobile && (
@@ -605,6 +607,10 @@ export function UserSettings({ onClose }: UserSettingsProps) {
                 </button>
               </div>
             </div>
+          )}
+
+          {activeTab === 'support' && (
+            <FeedbackTab />
           )}
 
           {/* Invite & account actions */}

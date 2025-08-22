@@ -4,7 +4,7 @@ import { SignJWT, jwtVerify } from 'jose';
 const JWT_SECRET = (import.meta.env.VITE_JWT_SECRET as string) || 'anonymous_social_secret_key_change_in_production';
 const secretKey = new TextEncoder().encode(JWT_SECRET);
 
-export type UserRole = 'user' | 'moderator' | 'admin';
+export type UserRole = 'user' | 'moderator' | 'admin' | 'community_manager';
 
 export interface AuthToken {
   userId: string;

@@ -2,7 +2,7 @@ import { neon } from '@neondatabase/serverless';
 
 const sql = neon(import.meta.env.VITE_NEON_DB || process.env.NEON_DB!);
 
-export type UserRole = 'user' | 'moderator' | 'admin';
+export type UserRole = 'user' | 'moderator' | 'admin' | 'community_manager';
 
 export interface User {
 	id: string;
@@ -207,19 +207,85 @@ export async function initDatabase() {
 		)
 	`;
 
-	// Notifications
-	await sql`
-		CREATE TABLE IF NOT EXISTS notifications (
-			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-			type TEXT NOT NULL,
-			post_id UUID REFERENCES posts(id) ON DELETE CASCADE,
-			from_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
-			from_username TEXT NOT NULL,
-			created_at TIMESTAMPTZ DEFAULT NOW(),
-			read BOOLEAN DEFAULT FALSE
-		)
-	`;
+	// Notifications - handle schema migration
+	try {
+		// Check if the table exists and has the correct structure
+		const tableInfo = await sql`
+			SELECT column_name, data_type 
+			FROM information_schema.columns 
+			WHERE table_name = 'notifications' AND column_name = 'to_user_id'
+		`;
+		
+		if (tableInfo.length === 0) {
+			// Table doesn't exist or has wrong structure, recreate it
+			await sql`DROP TABLE IF EXISTS notifications CASCADE`;
+			await sql`
+				CREATE TABLE notifications (
+					id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+					to_user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+					type TEXT NOT NULL,
+					post_id UUID REFERENCES posts(id) ON DELETE CASCADE,
+					from_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+					from_username TEXT NOT NULL,
+					created_at TIMESTAMPTZ DEFAULT NOW(),
+					updated_at TIMESTAMPTZ DEFAULT NOW(),
+					read BOOLEAN DEFAULT FALSE
+				)
+			`;
+			
+			// Create trigger to update updated_at timestamp
+			await sql`
+				CREATE OR REPLACE FUNCTION update_notifications_updated_at()
+				RETURNS TRIGGER AS $$
+				BEGIN
+					NEW.updated_at = NOW();
+					RETURN NEW;
+				END;
+				$$ LANGUAGE plpgsql
+			`;
+			
+			await sql`
+				CREATE TRIGGER trigger_update_notifications_updated_at
+					BEFORE UPDATE ON notifications
+					FOR EACH ROW
+					EXECUTE FUNCTION update_notifications_updated_at()
+			`;
+		}
+	} catch (error) {
+		// If there's any error, try to create the table fresh
+		await sql`DROP TABLE IF EXISTS notifications CASCADE`;
+		await sql`
+			CREATE TABLE notifications (
+				id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+				to_user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+				type TEXT NOT NULL,
+				post_id UUID REFERENCES posts(id) ON DELETE CASCADE,
+				from_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+				from_username TEXT NOT NULL,
+				created_at TIMESTAMPTZ DEFAULT NOW(),
+				updated_at TIMESTAMPTZ DEFAULT NOW(),
+				read BOOLEAN DEFAULT FALSE
+			)
+		`;
+		
+		// Create trigger to update updated_at timestamp
+		await sql`
+			CREATE OR REPLACE FUNCTION update_notifications_updated_at()
+			RETURNS TRIGGER AS $$
+			BEGIN
+				NEW.updated_at = NOW();
+				RETURN NEW;
+			END;
+			$$ LANGUAGE plpgsql
+		`;
+		
+		await sql`
+			CREATE TRIGGER trigger_update_notifications_updated_at
+				BEFORE UPDATE ON notifications
+				FOR EACH ROW
+				EXECUTE FUNCTION update_notifications_updated_at()
+		`;
+	}
 
 	// Community flags table
 	await sql`
@@ -371,7 +437,7 @@ export async function createPost(
 		const parent = await sql`SELECT user_id FROM posts WHERE id = ${parentId}`;
 		if (parent[0] && parent[0].user_id !== userId) {
 			await sql`
-				INSERT INTO notifications (user_id, type, post_id, from_user_id, from_username)
+				INSERT INTO notifications (to_user_id, type, post_id, from_user_id, from_username)
 				VALUES (${parent[0].user_id}, 'reply', ${post.id}, ${userId}, ${user[0].username})
 			`;
 		}
@@ -382,7 +448,7 @@ export async function createPost(
 		const originalPost = await sql`SELECT user_id FROM posts WHERE id = ${repostOf}`;
 		if (originalPost[0] && originalPost[0].user_id !== userId) {
 			await sql`
-				INSERT INTO notifications (user_id, type, post_id, from_user_id, from_username)
+				INSERT INTO notifications (to_user_id, type, post_id, from_user_id, from_username)
 				VALUES (${originalPost[0].user_id}, 'repost', ${post.id}, ${userId}, ${user[0].username})
 			`;
 		}
@@ -698,9 +764,9 @@ export async function getBannedUsers(requesterId: string): Promise<Array<{
 // Notifications
 export async function getNotifications(userId: string, limit: number = 20): Promise<Notification[]> {
 	const result = await sql`
-		SELECT id, user_id, type, post_id, from_user_id, from_username, created_at, read
+		SELECT id, to_user_id as user_id, type, post_id, from_user_id, from_username, created_at, read
 		FROM notifications
-		WHERE user_id = ${userId}
+		WHERE to_user_id = ${userId}
 		ORDER BY created_at DESC
 		LIMIT ${limit}
 	`;
@@ -712,14 +778,14 @@ export async function markNotificationRead(notificationId: string): Promise<void
 }
 
 export async function markAllNotificationsRead(userId: string): Promise<void> {
-	await sql`UPDATE notifications SET read = TRUE WHERE user_id = ${userId}`;
+	await sql`UPDATE notifications SET read = TRUE WHERE to_user_id = ${userId}`;
 }
 
 export async function getUnreadNotificationCount(userId: string): Promise<number> {
 	const result = await sql`
 		SELECT COUNT(*) as count
 		FROM notifications
-		WHERE user_id = ${userId} AND read = FALSE
+		WHERE to_user_id = ${userId} AND read = FALSE
 	`;
 	return parseInt(result[0].count);
 }
@@ -854,7 +920,7 @@ export async function quarantinePost(postId: string, adminId: string): Promise<v
 	if (post.length > 0) {
 		const admin = await sql`SELECT username FROM users WHERE id = ${adminId}`;
 		await sql`
-			INSERT INTO notifications (user_id, type, post_id, from_user_id, from_username)
+			INSERT INTO notifications (to_user_id, type, post_id, from_user_id, from_username)
 			VALUES (${post[0].user_id}, 'quarantine', ${postId}, ${adminId}, ${admin[0].username})
 		`;
 	}
