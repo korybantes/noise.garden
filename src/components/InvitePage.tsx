@@ -3,7 +3,7 @@ import { useAuth } from '../hooks/useAuth';
 import { getInviteForCreator, createInviteForUser, getInvitesCreatedBy, getInviterForUser } from '../lib/database';
 import { RefreshCw, ArrowLeft, Share2 } from 'lucide-react';
 import { useNavigation } from '../hooks/useNavigation';
-import { BottomNav } from './BottomNav';
+
 
 export function InvitePage() {
   const { user } = useAuth();
@@ -164,7 +164,6 @@ export function InvitePage() {
           </div>
         </div>
       </div>
-      <BottomNav />
     </div>
   );
 } 
