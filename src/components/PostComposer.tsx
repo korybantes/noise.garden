@@ -208,7 +208,7 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
 						value={content} 
 						onChange={(e) => setContent(e.target.value)} 
 						placeholder={replyTo ? t('writeYourReply', language) : t('shareRandomThought', language)} 
-						className="w-full p-3 bg-transparent border-0 resize-none focus:outline-none font-mono text-sm placeholder-gray-400 dark:placeholder-gray-500 text-gray-900 dark:text-gray-100" 
+						className="w-full p-3 bg-transparent border-0 resize-none focus:outline-none font-mono text-sm placeholder-gray-400 dark:placeholder-gray-500 text-gray-900 dark:text-gray-100 text-base" 
 						rows={3} 
 						maxLength={280} 
 						onKeyDown={handleKeyDown}
@@ -288,11 +288,11 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
                 <div className="ml-6 space-y-2">
                   <div>
                     <label className="block text-xs font-mono text-gray-600 dark:text-gray-400 mb-1">{t('replyLimit', language)}</label>
-                    <input type="number" min="1" max="100" value={popupReplyLimit} onChange={(e) => setPopupReplyLimit(Number(e.target.value))} className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm font-mono" />
+                    <input type="number" min="1" max="100" value={popupReplyLimit} onChange={(e) => setPopupReplyLimit(Number(e.target.value))} className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm font-mono text-base" />
                   </div>
                   <div>
                     <label className="block text-xs font-mono text-gray-600 dark:text-gray-400 mb-1">{t('timeLimitMinutes', language)}</label>
-                    <input type="number" min="1" max="1440" value={popupTimeLimit} onChange={(e) => setPopupTimeLimit(Number(e.target.value))} className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm font-mono" />
+                    <input type="number" min="1" max="1440" value={popupTimeLimit} onChange={(e) => setPopupTimeLimit(Number(e.target.value))} className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm font-mono text-base" />
                   </div>
                 </div>
               )}
@@ -309,11 +309,11 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
           <div className="mt-4 p-3 border border-gray-200 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800">
             <h3 className="text-sm font-mono font-semibold text-gray-900 dark:text-gray-100 mb-3">Create a poll</h3>
             <div className="space-y-2">
-              <input value={pollQuestion} onChange={(e) => setPollQuestion(e.target.value)} placeholder="Poll question" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-900 text-sm font-mono" maxLength={120} />
+              <input value={pollQuestion} onChange={(e) => setPollQuestion(e.target.value)} placeholder="Poll question" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-900 text-sm font-mono text-base" maxLength={120} />
               <div className="space-y-2">
                 {pollOptions.map((opt, i) => (
                   <div key={i} className="flex items-center gap-2">
-                    <input value={opt} onChange={(e) => setPollOptions(prev => prev.map((p, idx) => idx===i ? e.target.value : p))} placeholder={`Option ${i+1}`} className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-900 text-sm font-mono" maxLength={60} />
+                    <input value={opt} onChange={(e) => setPollOptions(prev => prev.map((p, idx) => idx===i ? e.target.value : p))} placeholder={`Option ${i+1}`} className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-900 text-sm font-mono text-base" maxLength={60} />
                     {pollOptions.length > 2 && (
                       <button type="button" onClick={() => setPollOptions(prev => prev.filter((_, idx) => idx !== i))} className="text-xs font-mono text-gray-600 dark:text-gray-400">remove</button>
                     )}

@@ -320,7 +320,7 @@ export function UserSettings({ onClose }: UserSettingsProps) {
                 <div>
                   <label className="font-mono text-sm text-gray-600 dark:text-gray-400">{t('mutedWordsTags', currentLanguage)}</label>
                   <div className="mt-2 flex flex-col sm:flex-row gap-2">
-                    <input value={mutedInput} onChange={(e) => setMutedInput(e.target.value)} placeholder={t('wordOrTag', currentLanguage)} className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-900 text-sm font-mono" />
+                    <input value={mutedInput} onChange={(e) => setMutedInput(e.target.value)} placeholder={t('wordOrTag', currentLanguage)} className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-900 text-sm font-mono text-base" />
                     <button type="button" onClick={() => { if (!mutedInput.trim()) return; setSettings(s => ({ ...(s as any), mutedWords: Array.from(new Set([...((s as any).mutedWords||[]), mutedInput.trim()])) }) as FS); setMutedInput(''); }} className="ng-btn whitespace-nowrap">{t('add', currentLanguage)}</button>
                   </div>
                   {(settings as any).mutedWords?.length > 0 && (
@@ -628,8 +628,14 @@ export function UserSettings({ onClose }: UserSettingsProps) {
               </button>
             ) : (
               <form onSubmit={handleChangePassword} className="space-y-3 mt-3">
-                <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder={t('currentPassword', currentLanguage)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 dark:focus:ring-gray-600 bg-white dark:bg-gray-900" required />
-                <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder={t('newPasswordMin6Chars', currentLanguage)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 dark:focus:ring-gray-600 bg-white dark:bg-gray-900" required minLength={6} />
+                <div>
+                  <label className="block text-sm font-mono text-gray-700 dark:text-gray-300 mb-2">{t('currentPassword', currentLanguage)}</label>
+                  <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder={t('currentPassword', currentLanguage)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-900 text-sm font-mono text-base" />
+                </div>
+                <div>
+                  <label className="block text-sm font-mono text-gray-700 dark:text-gray-300 mb-2">{t('newPassword', currentLanguage)}</label>
+                  <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder={t('newPasswordMin6Chars', currentLanguage)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-900 text-sm font-mono text-base" />
+                </div>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <button type="submit" disabled={loading} className="flex-1 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 py-2 px-4 rounded-md font-mono text-sm hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors disabled:opacity-50">{loading ? '...' : t('save', currentLanguage)}</button>
                   <button type="button" onClick={() => { setShowChangePassword(false); setCurrentPassword(''); setNewPassword(''); setError(''); }} className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 font-mono text-sm transition-colors">{t('cancel', currentLanguage)}</button>

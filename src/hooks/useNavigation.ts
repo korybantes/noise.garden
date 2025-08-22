@@ -65,8 +65,10 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
         // Calculate swipe progress for visual feedback
         const progress = Math.min(Math.abs(dx) / SWIPE_THRESHOLD, 1);
         setSwipeProgress(progress);
-        
-        // Remove haptic feedback on threshold crossing
+      } else {
+        // Reset swipe state if it's a vertical scroll
+        setIsSwiping(false);
+        setSwipeProgress(0);
       }
     };
 

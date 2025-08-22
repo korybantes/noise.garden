@@ -245,13 +245,13 @@ export function AuthForm() {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Username</label>
-          <input value={username} onChange={e => setUsername(e.target.value.toLowerCase())} className="mt-1 w-full rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-200" placeholder="yourname" />
+          <input value={username} onChange={e => setUsername(e.target.value.toLowerCase())} className="mt-1 w-full rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-3 py-2 font-mono text-base" placeholder="username" maxLength={20} />
         </div>
 
         {mode !== 'backup' && (
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="mt-1 w-full rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-200" placeholder="••••••" />
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="mt-1 w-full rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-3 py-2 font-mono text-base" placeholder="password" />
           </div>
         )}
 
@@ -259,7 +259,7 @@ export function AuthForm() {
           <>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Invite code</label>
-              <input value={invite} onChange={e => setInvite(e.target.value.toUpperCase())} className="mt-1 w-full rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-200" placeholder="XXXX-XXXX-XXXX" />
+              <input value={invite} onChange={e => setInvite(e.target.value.toUpperCase())} className="mt-1 w-full rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-3 py-2 font-mono text-base" placeholder="XXX-XXX-XXX" maxLength={11} />
             </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Captcha</label>
@@ -272,8 +272,8 @@ export function AuthForm() {
           <div className="space-y-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Backup code</label>
-              <input value={backupCode} onChange={e => setBackupCode(e.target.value.toUpperCase())} className="mt-1 w-full rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-200" placeholder="XXXX-XXXX-XXXX-XXXX" />
-                </div>
+              <input value={backupCode} onChange={e => setBackupCode(e.target.value.toUpperCase())} className="mt-1 w-full rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-3 py-2 font-mono text-base" placeholder="XXXX-XXXX-XXXX" maxLength={19} />
+            </div>
             <div className="font-mono text-xs text-gray-600 dark:text-gray-400">Use your one-time backup code displayed at signup to recover your account.</div>
               </div>
             )}

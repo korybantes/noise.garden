@@ -163,7 +163,6 @@
 
 /* Ensure proper pull-to-refresh behavior */
 html, body {
-  overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
   /* Ensure proper scrolling on mobile */
@@ -173,7 +172,6 @@ html, body {
 
 /* Prevent horizontal overscroll */
 body {
-  overscroll-behavior-x: none;
   /* Ensure body can scroll */
   overflow-y: auto;
   overflow-x: hidden;
@@ -215,12 +213,33 @@ body {
   html, body {
     /* Better touch scrolling on mobile */
     -webkit-overflow-scrolling: touch;
-    overscroll-behavior: none;
   }
   
   /* Ensure proper touch handling on mobile */
   .min-h-screen {
     -webkit-overflow-scrolling: touch;
-    overscroll-behavior: none;
+  }
+
+  /* Prevent zooming on input focus (iOS Safari) */
+  input, textarea, select {
+    font-size: 16px !important;
+    transform: scale(1);
+    -webkit-transform: scale(1);
+  }
+
+  /* Ensure textarea doesn't zoom */
+  textarea {
+    font-size: 16px !important;
+    line-height: 1.4;
+  }
+
+  /* Prevent zoom on search inputs */
+  input[type="search"] {
+    font-size: 16px !important;
+  }
+
+  /* Prevent zoom on number inputs */
+  input[type="number"] {
+    font-size: 16px !important;
   }
 }

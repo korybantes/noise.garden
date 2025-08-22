@@ -321,7 +321,7 @@ export function ChatWindow({ onClose }: ChatWindowProps) {
   };
 
   return (
-    <div className="min-h-[calc(100vh-56px)] bg-gray-50 dark:bg-gray-950 pb-20 md:pb-0">
+    <div className="h-full bg-gray-50 dark:bg-gray-950 flex flex-col">
       <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
         <div className="w-full max-w-2xl mx-auto flex items-center justify-between px-2 sm:px-4 py-4">
           <div className="flex items-center gap-2">

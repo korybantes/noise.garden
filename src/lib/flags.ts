@@ -1,1 +1,1 @@
-export const ENABLE_PULL_TO_REFRESH = false; 
+export const ENABLE_PULL_TO_REFRESH = true; 

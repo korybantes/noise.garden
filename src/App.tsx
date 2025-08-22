@@ -89,10 +89,10 @@ function AppContent() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-20 md:pb-0 flex flex-col">
       <Header />
-      <div className="flex-1 relative">
+      <div className="flex-1 relative overflow-hidden">
         {/* Main content with smooth transitions */}
         <div 
-          className={`absolute inset-0 transition-transform duration-300 ease-out ${
+          className={`h-full transition-transform duration-300 ease-out ${
             isSwiping ? 'scale-95' : 'scale-100'
           }`}
         >

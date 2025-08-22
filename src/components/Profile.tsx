@@ -7,7 +7,6 @@ import { ShieldCheck, ShieldAlert, Link2, MicOff, Mic, Bell, MessageSquare, AtSi
 import { useRouter } from '../hooks/useRouter';
 import { useLanguage } from '../hooks/useLanguage';
 import { useLocalNotifications } from '../hooks/useLocalNotifications';
-import { ENABLE_PULL_TO_REFRESH } from '../lib/flags';
 
 export function Profile() {
   const { user } = useAuth();
@@ -31,7 +30,6 @@ export function Profile() {
   const [muteReason, setMuteReason] = useState('');
   const [muteDuration, setMuteDuration] = useState(24);
   const [muting, setMuting] = useState(false);
-  const [pullToRefresh, setPullToRefresh] = useState({ isPulling: false, distance: 0 });
   const [isMobile, setIsMobile] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [isNativeAndroid, setIsNativeAndroid] = useState(false);
@@ -105,49 +103,6 @@ export function Profile() {
     };
   }, [username]);
 
-  // Pull-to-refresh functionality (mobile only)
-  useEffect(() => {
-    if (!isMobile || !ENABLE_PULL_TO_REFRESH) return; // Only enable on mobile devices
-    
-    let startY = 0;
-    let currentY = 0;
-    let isPulling = false;
-
-    const handleTouchStart = (e: TouchEvent) => {
-      if (window.scrollY === 0 && window.pageYOffset === 0) {
-        startY = e.touches[0].clientY;
-        isPulling = true;
-      }
-    };
-
-    const handleTouchMove = (e: TouchEvent) => {
-      if (!isPulling || window.scrollY > 0) return;
-      currentY = e.touches[0].clientY;
-      const distance = Math.max(0, currentY - startY);
-      if (distance > 0) {
-        setPullToRefresh({ isPulling: true, distance: Math.min(distance, 100) });
-      }
-    };
-
-    const handleTouchEnd = () => {
-      if (pullToRefresh.isPulling && pullToRefresh.distance > 50) {
-        load({ silent: false });
-      }
-      setPullToRefresh({ isPulling: false, distance: 0 });
-      isPulling = false;
-    };
-
-    document.addEventListener('touchstart', handleTouchStart, { passive: true });
-    document.addEventListener('touchmove', handleTouchMove, { passive: true });
-    document.addEventListener('touchend', handleTouchEnd, { passive: true });
-
-    return () => {
-      document.removeEventListener('touchstart', handleTouchStart as any);
-      document.removeEventListener('touchmove', handleTouchMove as any);
-      document.removeEventListener('touchend', handleTouchEnd as any);
-    };
-  }, [isMobile, pullToRefresh.isPulling, pullToRefresh.distance]);
-
   const handleDeleted = (postId: string) => {
     setPosts(prev => prev.filter(p => p.id !== postId));
   };
@@ -216,20 +171,9 @@ export function Profile() {
   const postCount = posts.length;
 
   return (
-    <div className="min-h-[calc(100vh-56px)] bg-gray-50 dark:bg-gray-950 pb-20 md:pb-0">
+    <div className="h-full bg-gray-50 dark:bg-gray-950 overflow-y-auto">
       
       <div className="max-w-2xl mx-auto p-4 space-y-4">
-        {/* Pull to refresh hint - only show on mobile */}
-        {isMobile && (
-          <div className="text-center py-2 text-xs text-gray-400 dark:text-gray-500 font-mono">
-            {pullToRefresh.isPulling 
-              ? pullToRefresh.distance > 50 
-                ? 'Release to refresh' 
-                : 'Keep pulling...'
-              : '↓ Pull down to refresh'
-            }
-          </div>
-        )}
         
         <div className="ng-card p-6">
           <div className="flex items-center gap-3">

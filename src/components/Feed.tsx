@@ -80,13 +80,14 @@ export function Feed() {
       const newOffset = opts?.reset ? 0 : offset;
       const newPosts = await getRandomPosts(20, newOffset, sortBy);
       if (opts?.reset) {
-      setPosts(newPosts);
+        setPosts(newPosts);
         setOffset(20);
+        // Don't persist cache when refreshing to ensure fresh data
       } else {
         setPosts(prev => [...prev, ...newPosts]);
         setOffset(prev => prev + 20);
+        persistCache([...posts, ...newPosts]);
       }
-      persistCache(opts?.reset ? newPosts : [...posts, ...newPosts]);
       setHasMore(newPosts.length === 20);
     } catch (error) {
       console.error('Failed to load posts:', error);
@@ -188,15 +189,21 @@ export function Feed() {
       currentY = e.touches[0].clientY;
       const distance = Math.max(0, currentY - startY);
       if (distance > 0) {
-        pullStateRef.set({ isPulling: true, distance: Math.min(distance, 100) });
+        // Add resistance to the pull (make it feel more natural)
+        const resistedDistance = distance * 0.6;
+        pullStateRef.set({ isPulling: true, distance: Math.min(resistedDistance, 120) });
       }
     };
 
     const handleTouchEnd = () => {
       const state = pullStateRef.get();
-      if (state.isPulling && state.distance > 50) {
-        // Trigger refresh
+      if (state.isPulling && state.distance > 60) {
+        // Trigger refresh with haptic feedback
         hapticLight();
+        // Clear cache and force fresh load
+        try {
+          localStorage.removeItem('feed_cache');
+        } catch {}
         loadPosts({ silent: false, reset: true });
       }
       resetPullState();
@@ -239,7 +246,7 @@ export function Feed() {
 
   if (viewingReplies) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-20 md:pb-0">
+      <div className="h-full bg-gray-50 dark:bg-gray-950 overflow-y-auto">
         <div className="w-full max-w-2xl mx-auto px-2 sm:px-4">
           <div className="flex items-center gap-4 mb-6">
             <button
@@ -295,17 +302,51 @@ export function Feed() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-20 md:pb-0">
+    <div className="h-full bg-gray-50 dark:bg-gray-950 overflow-y-auto">
       <div className="w-full max-w-2xl mx-auto px-2 sm:px-4" ref={containerRef}>
-        {/* Pull to refresh hint - only show on mobile */}
+        {/* Enhanced Pull to refresh indicator - only show on mobile */}
         {isMobile && (
-          <div className="text-center py-2 text-xs text-gray-400 dark:text-gray-500 font-mono">
-            {pullToRefresh.isPulling 
-              ? pullToRefresh.distance > 50 
-                ? 'Release to refresh' 
-                : 'Keep pulling...'
-              : '↓ Pull down to refresh'
-            }
+          <div className={`text-center py-3 transition-all duration-200 ease-out ${
+            pullToRefresh.isPulling ? 'opacity-100' : 'opacity-60'
+          }`}>
+            <div className="flex items-center justify-center gap-2 text-sm font-mono">
+              <RefreshCw 
+                size={16} 
+                className={`transition-transform duration-200 ${
+                  pullToRefresh.isPulling 
+                    ? pullToRefresh.distance > 60 
+                      ? 'text-green-600 dark:text-green-400 rotate-180' 
+                      : 'text-gray-600 dark:text-gray-400'
+                    : 'text-gray-400 dark:text-gray-500'
+                } ${loading ? 'animate-spin' : ''}`}
+              />
+              <span className={`transition-colors duration-200 ${
+                pullToRefresh.isPulling 
+                  ? pullToRefresh.distance > 60 
+                    ? 'text-green-600 dark:text-green-400' 
+                    : 'text-gray-600 dark:text-gray-400'
+                  : 'text-gray-400 dark:text-gray-500'
+              }`}>
+                {pullToRefresh.isPulling 
+                  ? pullToRefresh.distance > 60 
+                    ? 'Release to refresh' 
+                    : 'Keep pulling...'
+                  : '↓ Pull down to refresh'
+                }
+              </span>
+            </div>
+            {/* Progress bar */}
+            {pullToRefresh.isPulling && (
+              <div className="mt-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1 overflow-hidden">
+                <div 
+                  className="bg-blue-500 dark:bg-blue-400 h-1 rounded-full transition-all duration-200 ease-out"
+                  style={{ 
+                    width: `${Math.min((pullToRefresh.distance / 60) * 100, 100)}%`,
+                    backgroundColor: pullToRefresh.distance > 60 ? '#10b981' : '#3b82f6'
+                  }}
+                />
+              </div>
+            )}
           </div>
         )}
         

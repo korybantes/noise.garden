@@ -24,7 +24,7 @@ export function FeedSettings({ onClose }: Props) {
 					<div>
 						<label className="font-mono text-sm text-gray-600 dark:text-gray-400">muted words/tags</label>
 						<div className="mt-2 flex gap-2">
-							<input value={mutedInput} onChange={(e) => setMutedInput(e.target.value)} placeholder="word or #tag" className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-900 text-sm font-mono" />
+							<input value={mutedInput} onChange={(e) => setMutedInput(e.target.value)} placeholder="word or #tag" className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-900 text-sm font-mono text-base" />
 							<button type="button" onClick={() => { if (!mutedInput.trim()) return; setSettings(s => ({ ...s, mutedWords: Array.from(new Set([...(s.mutedWords||[]), mutedInput.trim()])) })); setMutedInput(''); }} className="px-3 py-2 rounded bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900 font-mono text-sm">add</button>
 						</div>
 						{settings.mutedWords.length > 0 && (
@@ -39,9 +39,9 @@ export function FeedSettings({ onClose }: Props) {
 					<div>
 						<label className="font-mono text-sm text-gray-600 dark:text-gray-400">quiet hours</label>
 						<div className="mt-2 flex items-center gap-2">
-							<input type="number" min={0} max={23} value={settings.quietHours?.startHour ?? ''} onChange={(e) => setSettings(s => ({ ...s, quietHours: { startHour: Number(e.target.value||0), endHour: s.quietHours?.endHour ?? 0 } }))} placeholder="start (0-23)" className="w-28 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-900 text-sm font-mono" />
-							<span className="text-gray-500">to</span>
-							<input type="number" min={0} max={23} value={settings.quietHours?.endHour ?? ''} onChange={(e) => setSettings(s => ({ ...s, quietHours: { startHour: s.quietHours?.startHour ?? 0, endHour: Number(e.target.value||0) } }))} placeholder="end (0-23)" className="w-28 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-900 text-sm font-mono" />
+							<input type="number" min={0} max={23} value={settings.quietHours?.startHour ?? ''} onChange={(e) => setSettings(s => ({ ...s, quietHours: { startHour: Number(e.target.value||0), endHour: s.quietHours?.endHour ?? 0 } }))} className="w-16 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm font-mono text-base" />
+							<span className="font-mono text-sm text-gray-600 dark:text-gray-400">to</span>
+							<input type="number" min={0} max={23} value={settings.quietHours?.endHour ?? ''} onChange={(e) => setSettings(s => ({ ...s, quietHours: { startHour: s.quietHours?.startHour ?? 0, endHour: Number(e.target.value||0) } }))} className="w-16 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm font-mono text-base" />
 							<button type="button" onClick={() => setSettings(s => ({ ...s, quietHours: null }))} className="px-3 py-2 rounded border border-gray-300 dark:border-gray-700 font-mono text-sm">clear</button>
 						</div>
 					</div>
