@@ -78,6 +78,9 @@ export function AuthForm() {
   const [altchaPayload, setAltchaPayload] = useState<string>('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [acceptPrivacy, setAcceptPrivacy] = useState(false);
+  const [acceptAge, setAcceptAge] = useState(false);
   const altchaRef = useRef<HTMLDivElement | null>(null);
   const { login } = useAuth();
 
@@ -155,6 +158,9 @@ export function AuthForm() {
     setConfirmPassword('');
     setShowPassword(false);
     setShowConfirmPassword(false);
+    setAcceptTerms(false);
+    setAcceptPrivacy(false);
+    setAcceptAge(false);
   };
 
   const getPasswordStrength = (pass: string) => {
@@ -175,6 +181,10 @@ export function AuthForm() {
     try {
       if (mode === 'signup') {
         if (!altchaPayload) { setError('Please complete the captcha'); return; }
+        if (!acceptTerms || !acceptPrivacy || !acceptAge) { 
+          setError('Please accept all terms and conditions to continue'); 
+          return; 
+        }
         const existingUser = await getUserByUsername(username);
         if (existingUser) { setError('Username already exists'); return; }
         if (password.length < 6) { setError('Password must be 6+ chars'); return; }
@@ -341,6 +351,79 @@ export function AuthForm() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Invite code</label>
               <input value={invite} onChange={e => setInvite(e.target.value.toUpperCase())} className="mt-1 w-full rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-3 py-2 font-mono text-base" placeholder="XXX-XXX-XXX" maxLength={11} />
             </div>
+            
+            {/* Terms and Conditions */}
+            <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+              <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                Before creating your account, please review and accept:
+              </div>
+              
+              <div className="space-y-3">
+                <label className="flex items-start gap-3 text-sm cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={acceptAge} 
+                    onChange={(e) => setAcceptAge(e.target.checked)}
+                    className="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" 
+                  />
+                  <span className="text-gray-700 dark:text-gray-300 font-mono">
+                    I confirm that I am at least 13 years old and legally able to agree to these terms.
+                  </span>
+                </label>
+                
+                <label className="flex items-start gap-3 text-sm cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={acceptTerms} 
+                    onChange={(e) => setAcceptTerms(e.target.checked)}
+                    className="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" 
+                  />
+                  <span className="text-gray-700 dark:text-gray-300 font-mono">
+                    I agree to the{' '}
+                    <button 
+                      type="button" 
+                      onClick={() => window.open('/terms', '_blank')}
+                      className="text-blue-600 dark:text-blue-400 underline hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
+                    >
+                      Terms of Service
+                    </button>
+                    {' '}and understand that this platform is ephemeral (posts expire automatically).
+                  </span>
+                </label>
+                
+                <label className="flex items-start gap-3 text-sm cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={acceptPrivacy} 
+                    onChange={(e) => setAcceptPrivacy(e.target.checked)}
+                    className="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" 
+                  />
+                  <span className="text-gray-700 dark:text-gray-300 font-mono">
+                    I have read and accept the{' '}
+                    <button 
+                      type="button" 
+                      onClick={() => window.open('/privacy', '_blank')}
+                      className="text-blue-600 dark:text-blue-400 underline hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
+                    >
+                      Privacy Policy
+                    </button>
+                    {' '}and understand how my data will be handled.
+                  </span>
+                </label>
+              </div>
+              
+              <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-md">
+                <div className="text-xs text-blue-800 dark:text-blue-200 font-mono space-y-1">
+                  <div className="font-semibold">Key Points:</div>
+                  <div>• Posts and messages automatically expire (ephemeral)</div>
+                  <div>• Invitation-only platform with community guidelines</div>
+                  <div>• No personal data is sold or shared with third parties</div>
+                  <div>• Account deletion removes all associated data permanently</div>
+                  <div>• Moderation is enforced to maintain a safe environment</div>
+                </div>
+              </div>
+            </div>
+            
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Captcha</label>
             <div ref={altchaRef} />
@@ -358,9 +441,9 @@ export function AuthForm() {
               </div>
             )}
 
-        <button type="submit" disabled={loading || (mode==='signup' && !altchaPayload)} className="w-full inline-flex items-center justify-center px-4 py-2 rounded bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-60">
+        <button type="submit" disabled={loading || (mode==='signup' && (!altchaPayload || !acceptTerms || !acceptPrivacy || !acceptAge))} className="w-full inline-flex items-center justify-center px-4 py-2 rounded bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-60">
           {loading ? 'Please wait…' : (mode === 'login' ? 'Log in' : mode === 'signup' ? 'Create account' : 'Recover')}
-            </button>
+        </button>
 
         {mode === 'login' && (
           <div className="text-center">
