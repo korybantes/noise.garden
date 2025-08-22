@@ -1,6 +1,7 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
 buildscript {
+    ext { kotlin_version = '1.8.22' }
     
     repositories {
         google()
@@ -9,7 +10,8 @@ buildscript {
     dependencies {
         classpath 'com.android.tools.build:gradle:8.12.1'
         classpath 'com.google.gms:google-services:4.4.2'
-
+        // classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version" // Not strictly required unless using Kotlin source
+        
         // NOTE: Do not place your application dependencies here; they belong
         // in the individual module build.gradle files
     }
@@ -21,6 +23,14 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+    }
+    // Resolve kotlin duplicate class conflicts from mixed transitive deps
+    configurations.all { cfg ->
+        resolutionStrategy {
+            force "org.jetbrains.kotlin:kotlin-stdlib:${kotlin_version}"
+        }
+        exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk7'
+        exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk8'
     }
 }
 

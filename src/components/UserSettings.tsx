@@ -24,11 +24,36 @@ export function UserSettings({ onClose }: UserSettingsProps) {
   const [loading, setLoading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState('');
   const [bio, setBio] = useState('');
-  const [activeTab, setActiveTab] = useState<'profile' | 'feed' | 'language' | 'privacy' | 'security'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'feed' | 'language' | 'mobile' | 'privacy' | 'security'>('profile');
   const [settings, setSettings] = useState<FS>(() => loadFeedSettings());
   const [mutedInput, setMutedInput] = useState('');
   const [language, setLanguage] = useState<'en' | 'tr'>(settings.language);
   const { language: currentLanguage } = useLanguage();
+  const [isMobile, setIsMobile] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+  const [isNativeAndroid, setIsNativeAndroid] = useState(false);
+
+  // Detect mobile device and platform
+  useEffect(() => {
+    const checkMobile = () => {
+      const userAgent = navigator.userAgent.toLowerCase();
+      const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent) || 
+                           ('ontouchstart' in window) || 
+                           (navigator.maxTouchPoints > 0);
+      
+      // Detect iOS specifically
+      const isIOSDevice = /iphone|ipad|ipod/i.test(userAgent);
+      const isNativeAndroidDevice = /android/i.test(userAgent) && !isIOSDevice;
+      
+      setIsMobile(isMobileDevice);
+      setIsIOS(isIOSDevice);
+      setIsNativeAndroid(isNativeAndroidDevice);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -204,16 +229,34 @@ export function UserSettings({ onClose }: UserSettingsProps) {
           </div>
 
           {/* Tabs */}
-          <div className="flex items-center gap-2 mt-4 overflow-x-auto pb-2">
-            <button onClick={() => setActiveTab('profile')} className={`px-3 py-1.5 rounded font-mono text-xs whitespace-nowrap ${activeTab==='profile' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}>Profile</button>
-            <button onClick={() => setActiveTab('feed')} className={`px-3 py-1.5 rounded font-mono text-xs whitespace-nowrap ${activeTab==='feed' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}>Feed</button>
-            <button onClick={() => setActiveTab('language')} className={`px-3 py-1.5 rounded font-mono text-xs whitespace-nowrap ${activeTab==='language' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}>Language</button>
-            <button onClick={() => setActiveTab('privacy')} className={`px-3 py-1.5 rounded font-mono text-xs whitespace-nowrap ${activeTab==='privacy' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}>Privacy</button>
-            <button onClick={() => setActiveTab('security')} className={`px-3 py-1.5 rounded font-mono text-xs whitespace-nowrap ${activeTab==='security' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}>Security</button>
+          <div className="relative">
+            <div className="flex items-center gap-2 mt-4 overflow-x-auto pb-2 scrollbar-hide touch-pan-x tab-scroll-container">
+              <button onClick={() => setActiveTab('profile')} className={`px-3 py-1.5 rounded font-mono text-xs whitespace-nowrap flex-shrink-0 ${activeTab==='profile' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}>Profile</button>
+              <button onClick={() => setActiveTab('feed')} className={`px-3 py-1.5 rounded font-mono text-xs whitespace-nowrap flex-shrink-0 ${activeTab==='feed' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}>Feed</button>
+              <button onClick={() => setActiveTab('language')} className={`px-3 py-1.5 rounded font-mono text-xs whitespace-nowrap flex-shrink-0 ${activeTab==='language' ? 'bg-gray-900 text-white dark:text-gray-100 dark:text-gray-900' : 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}>Language</button>
+              <button onClick={() => setActiveTab('mobile')} className={`px-3 py-1.5 rounded font-mono text-xs whitespace-nowrap flex-shrink-0 ${activeTab==='mobile' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}>Mobile</button>
+              <button onClick={() => setActiveTab('privacy')} className={`px-3 py-1.5 rounded font-mono text-xs whitespace-nowrap flex-shrink-0 ${activeTab==='privacy' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}>Privacy</button>
+              <button onClick={() => setActiveTab('security')} className={`px-3 py-1.5 rounded font-mono text-xs whitespace-nowrap flex-shrink-0 ${activeTab==='security' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}>Security</button>
+            </div>
+            {/* Scroll indicator for mobile */}
+            {isMobile && (
+              <>
+                <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-white dark:from-gray-900 to-transparent pointer-events-none" />
+                <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white dark:from-gray-900 to-transparent pointer-events-none" />
+              </>
+            )}
+            {/* Scroll instruction for mobile */}
+            {isMobile && (
+              <div className="text-center mt-1">
+                <span className="text-xs text-gray-400 dark:text-gray-500 font-mono">
+                  ← Swipe to see more tabs →
+                </span>
+              </div>
+            )}
           </div>
               </div>
 
-        <div className="p-4 sm:p-6">
+        <div className="p-4 sm:p-6 pb-20 md:pb-6">
           {/* Profile section */}
             {activeTab === 'profile' && (
               <div className="space-y-4">
@@ -322,6 +365,166 @@ export function UserSettings({ onClose }: UserSettingsProps) {
               </div>
               </div>
             )}
+
+          {activeTab === 'mobile' && (
+            <div className="space-y-4">
+              {isNativeAndroid ? (
+                <div className="rounded-md border border-gray-200 dark:border-gray-800 p-4">
+                  <div className="flex items-center gap-3">
+                    <img src="/logo.png" alt="logo" className="w-8 h-8 rounded" />
+                    <div className="font-mono text-sm text-gray-600 dark:text-gray-400">
+                      You're using the native Android app.
+                    </div>
+                  </div>
+                </div>
+              ) : isIOS ? (
+                // iOS Users - Coming Soon
+                <div className="rounded-md border border-gray-200 dark:border-gray-800 p-4">
+                  <div className="flex items-center gap-3 mb-4">
+                    <img src="/logo.png" alt="logo" className="w-12 h-12 rounded-lg" />
+                    <div>
+                      <h3 className="font-mono text-lg font-bold text-gray-900 dark:text-gray-100">
+                        iOS App Coming Soon
+                      </h3>
+                      <p className="font-mono text-sm text-gray-600 dark:text-gray-400">
+                        We're working on bringing noise.garden to iPhone and iPad
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                      <h4 className="font-mono font-semibold text-blue-800 dark:text-blue-200 mb-2">
+                        ✨ Planned iOS Features
+                      </h4>
+                      <ul className="space-y-2 text-sm text-blue-700 dark:text-blue-300">
+                        <li className="flex items-center gap-2">
+                          <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
+                          Push notifications for mentions and replies
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
+                          Haptic feedback for interactions
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
+                          Native iOS performance and design
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
+                          Pull-to-refresh and smooth scrolling
+                        </li>
+                      </ul>
+                    </div>
+
+                    <div className="bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 rounded-lg p-3">
+                      <h4 className="font-mono font-semibold text-purple-800 dark:text-purple-200 mb-2">
+                        🚧 Development Status
+                      </h4>
+                      <p className="text-sm text-purple-700 dark:text-purple-300">
+                        Our iOS app is currently in development. We're working hard to bring the same privacy-first, 
+                        ephemeral social experience to iPhone and iPad users. The app will feature native iOS design 
+                        patterns and integrate seamlessly with iOS notifications and haptics.
+                      </p>
+                    </div>
+
+                    <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                      <h4 className="font-mono font-semibold text-amber-800 dark:text-amber-200 mb-2">
+                        📱 Current Options
+                      </h4>
+                      <p className="text-sm text-amber-700 dark:text-amber-300">
+                        While you wait for the iOS app, you can continue using noise.garden in your mobile browser. 
+                        The web version is fully responsive and works great on mobile devices.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                // Android Users - Download Available (web)
+                <div className="rounded-md border border-gray-200 dark:border-gray-800 p-4">
+                  <div className="flex items-center gap-3 mb-4">
+                    <img src="/logo.png" alt="logo" className="w-12 h-12 rounded-lg" />
+                    <div>
+                      <h3 className="font-mono text-lg font-bold text-gray-900 dark:text-gray-100">
+                        Android App
+                      </h3>
+                      <p className="font-mono text-sm text-gray-600 dark:text-gray-400">
+                        Limited beta - Join to test mobile features
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                      <h4 className="font-mono font-semibold text-blue-800 dark:text-blue-200 mb-2">
+                        ✨ Mobile Features
+                      </h4>
+                      <ul className="space-y-2 text-sm text-blue-700 dark:text-blue-300">
+                        <li className="flex items-center gap-2">
+                          <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
+                          Push notifications for mentions and replies
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
+                          Haptic feedback for interactions
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
+                          Native Android performance
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
+                          Pull-to-refresh and smooth scrolling
+                        </li>
+                      </ul>
+                    </div>
+
+                    <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                      <h4 className="font-mono font-semibold text-amber-800 dark:text-amber-200 mb-2">
+                        📱 Download Options
+                      </h4>
+                      <div className="space-y-2">
+                        <p className="text-sm text-amber-700 dark:text-amber-300">
+                          Choose your preferred download method:
+                        </p>
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <a 
+                            href="https://play.google.com/store/apps/details?id=com.ng.app" 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md font-mono text-sm transition-colors"
+                          >
+                            🏪 Google Play Store
+                          </a>
+                          <a 
+                            href="https://github.com/ng-app/ng-app/releases" 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="flex items-center justify-center gap-2 bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded-md font-mono text-sm transition-colors"
+                          >
+                            📦 Direct APK Download
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-50 dark:bg-gray-900/20 border border-gray-200 dark:border-gray-800 rounded-lg p-3">
+                      <h4 className="font-mono font-semibold text-gray-800 dark:text-gray-200 mb-2">
+                        🔧 Installation Guide
+                      </h4>
+                      <ol className="list-decimal list-inside space-y-1 text-sm text-gray-700 dark:text-gray-300">
+                        <li>Download the APK file from the links above</li>
+                        <li>Enable "Install from unknown sources" in your Android settings</li>
+                        <li>Open the downloaded APK file</li>
+                        <li>Tap "Install" when prompted</li>
+                        <li>Open the app and sign in with your existing account</li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {activeTab === 'privacy' && (
             <div className="rounded-md border border-gray-200 dark:border-gray-800 p-3">

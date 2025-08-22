@@ -27,7 +27,7 @@
 
         <!-- Firebase Messaging Service for Push Notifications -->
         <service
-            android:name=".FirebaseMessagingService"
+            android:name=".AppFirebaseMessagingService"
             android:exported="false">
             <intent-filter>
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />

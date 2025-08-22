@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { getInviteForCreator, createInviteForUser, getInvitesCreatedBy, getInviterForUser } from '../lib/database';
-import { Copy, RefreshCw, ArrowLeft } from 'lucide-react';
+import { RefreshCw, ArrowLeft, Share2 } from 'lucide-react';
 import { useNavigation } from '../hooks/useNavigation';
 
 export function InvitePage() {
@@ -39,14 +39,50 @@ export function InvitePage() {
     }
   };
 
-  const shareLink = async () => {
+  const shareInvite = async () => {
     if (!code) return;
-    const link = `${window.location.origin}/app?invite=${encodeURIComponent(code)}`;
+    const base = (import.meta as any).env?.VITE_PUBLIC_BASE_URL || 'https://noise-garden.vercel.app';
+    const link = `${base}/app?invite=${encodeURIComponent(code)}`;
+    const message = `🌱 You’ve received a private invitation to join **noise.garden** 🌱\n\nAn anonymity-first, privacy-protected social space.  \nNo profiles. No tracking. No algorithms — just pure connection.\n\n🔑 Access your personal link: ${link}\n\n⚠️ This invitation can only be used once. After that, it disappears.`;
+
+    // Try Web Share API first
     try {
-      await navigator.clipboard.writeText(link);
+      const shareData: any = { title: 'noise.garden invite', text: message, url: link };
+      if ((navigator as any).canShare ? (navigator as any).canShare(shareData) : true) {
+        await (navigator as any).share(shareData);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+        return;
+      }
+    } catch {
+      // continue to fallbacks
+    }
+
+    // Try Capacitor Share plugin if available
+    try {
+      // Use the alias; during dev it resolves to our stub
+      const mod: any = await import('@capacitor/share');
+      const Share = (mod as any).Share || mod;
+      if (Share?.share) {
+        await Share.share({ title: 'noise.garden invite', text: message, url: link, dialogTitle: 'Share invite' });
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+        return;
+      }
+    } catch {
+      // continue to clipboard fallback
+    }
+
+    // Clipboard fallback
+    try {
+      await navigator.clipboard.writeText(message);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
-    } catch {}
+      alert('Invite message copied to clipboard! Paste it into your favorite app.');
+    } catch {
+      // last resort open mailto
+      window.open(`mailto:?subject=${encodeURIComponent('noise.garden invite')}&body=${encodeURIComponent(message)}`);
+    }
   };
 
   return (
@@ -80,12 +116,12 @@ export function InvitePage() {
                   <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                     <div className="font-mono text-sm px-3 py-2 rounded border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">{code}</div>
                     <button 
-                      onClick={shareLink} 
+                      onClick={shareInvite} 
                       className="ng-btn flex items-center gap-2"
                       disabled={copied}
                     >
-                      <Copy size={16} />
-                      {copied ? 'copied!' : 'copy invite link'}
+                      <Share2 size={16} />
+                      {copied ? 'shared!' : 'share invite'}
                     </button>
                   </div>
                 ) : (
@@ -129,4 +165,4 @@ export function InvitePage() {
       </div>
     </div>
   );
-} 
+}

@@ -37,8 +37,8 @@ function Root() {
         
         if (native) {
           try {
-            const { SplashScreen } = await import('@capacitor/splash-screen');
-            SplashScreen.hide();
+          const { SplashScreen } = await import('@capacitor/splash-screen');
+          SplashScreen.hide();
           } catch {
             // Ignore splash screen errors
           }

@@ -21,14 +21,32 @@ export function Feed() {
   const [replyTo, setReplyTo] = useState<PostType | null>(null);
   const [viewingReplies, setViewingReplies] = useState<{ post: PostType; replies: PostType[] } | null>(null);
   const [settingsVersion, setSettingsVersion] = useState(0);
+  const [pullToRefresh, setPullToRefresh] = useState({ isPulling: false, distance: 0 });
+  const [isMobile, setIsMobile] = useState(false);
   const { route } = useRouter();
   const { language } = useLanguage();
   const { currentRoom, clearRoom } = useNavigation();
 
   const touchStartY = useRef<number | null>(null);
   const pulling = useRef(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const settings = useMemo(() => loadFeedSettings(), [settingsVersion]);
+
+  // Detect mobile device
+  useEffect(() => {
+    const checkMobile = () => {
+      const userAgent = navigator.userAgent.toLowerCase();
+      const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent) || 
+                           ('ontouchstart' in window) || 
+                           (navigator.maxTouchPoints > 0);
+      setIsMobile(isMobileDevice);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const clearRoomFilter = () => {
     clearRoom();
@@ -136,36 +154,70 @@ export function Feed() {
     })();
   }, [route?.name === 'post' ? (route as any).params?.id : '']);
 
-  // Pull-to-refresh via downward swipe at top
+  // Pull-to-refresh via downward swipe at top (mobile only)
   useEffect(() => {
-    const onTouchStart = (e: TouchEvent) => {
-      if (window.scrollY === 0) {
-        touchStartY.current = e.touches[0].clientY;
-        pulling.current = true;
+    if (!isMobile) return; // Only enable on mobile devices
+    
+    let startY = 0;
+    let currentY = 0;
+    let isPulling = false;
+    let startTime = 0;
+    let pullTimeout: NodeJS.Timeout | null = null;
+
+    const resetPullState = () => {
+      setPullToRefresh({ isPulling: false, distance: 0 });
+      isPulling = false;
+      if (pullTimeout) {
+        clearTimeout(pullTimeout);
+        pullTimeout = null;
       }
     };
-    const onTouchMove = (e: TouchEvent) => {
-      if (!pulling.current || touchStartY.current == null) return;
-      const dy = e.touches[0].clientY - touchStartY.current;
-      if (dy > 70) {
-        pulling.current = false;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      // Only trigger when at the very top of the page
+      if (window.scrollY === 0 && window.pageYOffset === 0) {
+        startY = e.touches[0].clientY;
+        startTime = Date.now();
+        isPulling = true;
+        console.log('Touch start - pull to refresh initiated');
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!isPulling || window.scrollY > 0) return;
+      
+      currentY = e.touches[0].clientY;
+      const distance = Math.max(0, currentY - startY);
+      
+      if (distance > 0) {
+        setPullToRefresh({ isPulling: true, distance: Math.min(distance, 100) });
+        console.log('Touch move - distance:', distance);
+      }
+    };
+
+    const handleTouchEnd = () => {
+      if (pullToRefresh.isPulling && pullToRefresh.distance > 50) {
+        // Trigger refresh
+        console.log('Touch end - triggering refresh');
         hapticLight();
         loadPosts({ silent: false, reset: true });
       }
+      
+      resetPullState();
     };
-    const onTouchEnd = () => {
-      pulling.current = false;
-      touchStartY.current = null;
-    };
-    window.addEventListener('touchstart', onTouchStart, { passive: true });
-    window.addEventListener('touchmove', onTouchMove, { passive: true });
-    window.addEventListener('touchend', onTouchEnd, { passive: true });
+
+    // Touch events for mobile only
+    document.addEventListener('touchstart', handleTouchStart, { passive: true });
+    document.addEventListener('touchmove', handleTouchMove, { passive: true });
+    document.addEventListener('touchend', handleTouchEnd, { passive: true });
+
     return () => {
-      window.removeEventListener('touchstart', onTouchStart as any);
-      window.removeEventListener('touchmove', onTouchMove as any);
-      window.removeEventListener('touchend', onTouchEnd as any);
+      document.removeEventListener('touchstart', handleTouchStart as any);
+      document.removeEventListener('touchmove', handleTouchMove as any);
+      document.removeEventListener('touchend', handleTouchEnd as any);
+      resetPullState();
     };
-  }, [sortBy]);
+  }, [pullToRefresh.isPulling, pullToRefresh.distance, isMobile]);
 
   const handlePostCreated = () => {
     if (viewingReplies) {
@@ -248,7 +300,19 @@ export function Feed() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-20 md:pb-0">
-      <div className="w-full max-w-2xl mx-auto px-2 sm:px-4">
+      <div className="w-full max-w-2xl mx-auto px-2 sm:px-4" ref={containerRef}>
+        {/* Pull to refresh hint - only show on mobile */}
+        {isMobile && (
+          <div className="text-center py-2 text-xs text-gray-400 dark:text-gray-500 font-mono">
+            {pullToRefresh.isPulling 
+              ? pullToRefresh.distance > 50 
+                ? 'Release to refresh' 
+                : 'Keep pulling...'
+              : '↓ Pull down to refresh'
+            }
+          </div>
+        )}
+        
         <div className="flex items-center justify-between mb-6">
           <div>
             {currentRoom ? (

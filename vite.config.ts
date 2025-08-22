@@ -36,6 +36,7 @@ export default defineConfig({
       '@capacitor/splash-screen': resolve(__dirname, 'src/lib/capacitor-stubs/splash-screen.ts'),
       '@capacitor/haptics': resolve(__dirname, 'src/lib/capacitor-stubs/haptics.ts'),
       '@capacitor/push-notifications': resolve(__dirname, 'src/lib/capacitor-stubs/push-notifications.ts'),
+      '@capacitor/share': resolve(__dirname, 'src/lib/capacitor-stubs/share.ts'),
     }
   }
 });

@@ -345,11 +345,6 @@ export function Post({ post, onReply, onViewReplies, onDeleted, onReposted, isRe
           <Flag size={14} /> {t('quarantined', language)}
         </div>
       )}
-      {post.replies_disabled && (
-        <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400 text-xs font-mono">
-          <Lock size={14} /> {t('repliesDisabled', language)}
-        </div>
-      )}
 
       {showRepost && (
         <RepostModal postId={post.repost_of ? post.repost_of : post.id} onClose={() => setShowRepost(false)} onReposted={() => { setShowRepost(false); onReposted?.(); }} />

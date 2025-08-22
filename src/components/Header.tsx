@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { User, LogOut, Settings, MessageSquare, Moon, Sun, Home, Ticket, Shield, AtSign } from 'lucide-react';
+import { User, LogOut, Settings, MessageSquare, Moon, Sun, Home, Ticket, Shield, AtSign, Bell, Menu, X } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { UserSettings } from './UserSettings';
 import { useTheme } from '../hooks/useTheme';
@@ -13,6 +13,7 @@ import { getPendingMentions } from '../lib/database';
 import { t } from '../lib/translations';
 import { useLanguage } from '../hooks/useLanguage';
 import { loadFeedSettings } from '../lib/settings';
+import { useLocalNotifications } from '../hooks/useLocalNotifications';
 
 export function Header() {
   const { user, logout } = useAuth();
@@ -24,6 +25,45 @@ export function Header() {
   const { theme, toggleTheme } = useTheme();
   const { setView, chatActive, view } = useNavigation();
   const { language } = useLanguage();
+  const { sendTestNotification } = useLocalNotifications();
+  const [isMobile, setIsMobile] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+  const [isNativeAndroid, setIsNativeAndroid] = useState(false);
+
+  // Detect mobile device and platform
+  useEffect(() => {
+    const checkMobile = () => {
+      const userAgent = navigator.userAgent.toLowerCase();
+      const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent) || 
+                           ('ontouchstart' in window) || 
+                           (navigator.maxTouchPoints > 0);
+      
+      // Detect iOS specifically
+      const ios = /iphone|ipad|ipod/i.test(userAgent);
+      
+      setIsMobile(isMobileDevice);
+      setIsIOS(ios);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Detect Capacitor native Android
+  useEffect(() => {
+    (async () => {
+      try {
+        const { Capacitor } = await import('@capacitor/core');
+        const isNative = Capacitor.isNativePlatform?.() ?? false;
+        const platform = Capacitor.getPlatform?.();
+        setIsNativeAndroid(isNative && platform === 'android');
+      } catch {
+        setIsNativeAndroid(false);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -69,6 +109,33 @@ export function Header() {
 
   return (
     <>
+      {/* Mobile App Indicator Banner (hidden inside native Android app) */}
+      {isMobile && !isNativeAndroid && (
+        <div className="bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-950/20 dark:to-blue-950/20 border-b border-green-200 dark:border-green-800">
+          <div className="w-full max-w-2xl mx-auto px-2 sm:px-4 py-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-green-700 dark:text-green-300">
+                <span className="text-sm">📱</span>
+                <span className="font-mono text-xs">
+                  {isIOS 
+                    ? "iOS app coming soon! Stay tuned for updates."
+                    : "Android app available! Check Settings → Mobile tab"
+                  }
+                </span>
+              </div>
+              {!isIOS && (
+                <button 
+                  onClick={() => setView('settings')}
+                  className="text-xs font-mono text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200 underline"
+                >
+                  Get App
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      
       <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
         <div className="w-full max-w-2xl mx-auto px-2 sm:px-4 py-3">
           <div className="flex items-center justify-between">
