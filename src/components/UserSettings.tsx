@@ -198,8 +198,8 @@ export function UserSettings({ onClose }: UserSettingsProps) {
             </div>
             {onClose && (
               <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
-                <X size={20} />
-              </button>
+              <X size={20} />
+            </button>
             )}
           </div>
 
@@ -211,12 +211,12 @@ export function UserSettings({ onClose }: UserSettingsProps) {
             <button onClick={() => setActiveTab('privacy')} className={`px-3 py-1.5 rounded font-mono text-xs whitespace-nowrap ${activeTab==='privacy' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}>Privacy</button>
             <button onClick={() => setActiveTab('security')} className={`px-3 py-1.5 rounded font-mono text-xs whitespace-nowrap ${activeTab==='security' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}>Security</button>
           </div>
-        </div>
+              </div>
 
         <div className="p-4 sm:p-6">
           {/* Profile section */}
-          {activeTab === 'profile' && (
-            <div className="space-y-4">
+            {activeTab === 'profile' && (
+              <div className="space-y-4">
               <div className="flex flex-col sm:flex-row items-start gap-4">
                 <div className="relative group mx-auto sm:mx-0">
                   <button 
@@ -246,11 +246,11 @@ export function UserSettings({ onClose }: UserSettingsProps) {
                 </div>
                 <div className="flex-1 w-full sm:w-auto">
                   <p className="font-mono text-sm text-gray-600 dark:text-gray-400 mb-2">{t('bio', currentLanguage)}</p>
-                  <textarea 
-                    value={bio} 
+                  <textarea
+                    value={bio}
                     onChange={e => setBio(e.target.value)} 
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 dark:focus:ring-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100" 
-                    rows={4} 
+                    rows={4}
                     maxLength={200} 
                     placeholder={t('sayHelloNoLinks', currentLanguage)} 
                   />
@@ -320,8 +320,8 @@ export function UserSettings({ onClose }: UserSettingsProps) {
                   {t('turkish', currentLanguage)}
                 </button>
               </div>
-            </div>
-          )}
+              </div>
+            )}
 
           {activeTab === 'privacy' && (
             <div className="rounded-md border border-gray-200 dark:border-gray-800 p-3">
@@ -352,7 +352,7 @@ export function UserSettings({ onClose }: UserSettingsProps) {
                   <div className="flex items-center gap-2">
                     <AtSign size={16} />
                     Disable @mentions (others cannot mention you)
-                  </div>
+                      </div>
                 </label>
                 <label className="flex items-center gap-2 text-sm font-mono text-gray-700 dark:text-gray-300">
                   <input 
@@ -377,7 +377,7 @@ export function UserSettings({ onClose }: UserSettingsProps) {
                   <p className="font-mono text-sm text-gray-700 dark:text-gray-300">Backup codes</p>
                   <p className="font-mono text-xs text-gray-500 dark:text-gray-400">Download your one-time recovery codes</p>
                 </div>
-                <button
+                  <button
                   onClick={() => {
                     try {
                       const raw = localStorage.getItem('onboarding_backup_codes');

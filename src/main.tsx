@@ -1,60 +1,103 @@
-import { StrictMode } from 'react';
+import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Landing from './pages/Landing.tsx';
+import Welcome from './pages/Welcome.tsx';
 import Privacy from './pages/Privacy.tsx';
 import Terms from './pages/Terms.tsx';
 import Cookies from './pages/Cookies.tsx';
 import Docs from './pages/Docs.tsx';
 import { AuthProvider } from './hooks/useAuth';
+import { MobileLoading } from './components/MobileLoading.tsx';
 
-function ConsentBanner() {
-  const accepted = typeof localStorage !== 'undefined' && localStorage.getItem('consent_banner') === '1';
-  if (accepted) return null;
-  
-  const handleAccept = () => {
-    localStorage.setItem('consent_banner', '1');
-    // Force re-render by dispatching a custom event
-    window.dispatchEvent(new CustomEvent('consent-updated'));
-  };
-  
+function Root() {
+  const [isNative, setIsNative] = useState<boolean | null>(null);
+  const [welcomeCompleted, setWelcomeCompleted] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        // Try to import Capacitor, but provide fallback for web
+        let Capacitor;
+        try {
+          const module = await import('@capacitor/core');
+          Capacitor = module.Capacitor;
+        } catch {
+          // Fallback for web environment
+          Capacitor = {
+            isNativePlatform: () => false,
+            getPlatform: () => 'web'
+          };
+        }
+        
+        const native = Capacitor.isNativePlatform();
+        setIsNative(native);
+        
+        if (native) {
+          try {
+            const { SplashScreen } = await import('@capacitor/splash-screen');
+            SplashScreen.hide();
+          } catch {
+            // Ignore splash screen errors
+          }
+          
+          // Check if welcome was completed on this device
+          const completed = localStorage.getItem('welcome_completed') === 'true';
+          setWelcomeCompleted(completed);
+        }
+      } catch {
+        setIsNative(false);
+        setWelcomeCompleted(true);
+      }
+    })();
+  }, []);
+
+  // Show loading while detecting platform
+  if (isNative === null) {
+    return <MobileLoading />;
+  }
+
+  // On mobile, show welcome first if not completed
+  if (isNative && !welcomeCompleted) {
+    return (
+      <StrictMode>
+        <AuthProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Welcome />} />
+              <Route path="/terms" element={<Terms />} />
+              <Route path="/privacy" element={<Privacy />} />
+              <Route path="/cookies" element={<Cookies />} />
+              <Route path="/docs" element={<Docs />} />
+              <Route path="/app" element={<App />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </BrowserRouter>
+        </AuthProvider>
+      </StrictMode>
+    );
+  }
+
+  // Web or mobile with completed welcome
   return (
-    <div className="fixed bottom-0 inset-x-0 z-40 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-3">
-      <div className="max-w-5xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-        <div className="font-mono text-xs text-gray-700 dark:text-gray-300">We use essential cookies to run this site. Optional analytics (if enabled) will be opt‑in.</div>
-        <div className="flex items-center gap-2">
-          <a href="/cookies" className="font-mono text-xs underline text-gray-700 dark:text-gray-300">learn more</a>
-          <button onClick={handleAccept} className="px-3 py-1.5 rounded bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900 font-mono text-xs">ok</button>
-        </div>
-      </div>
-    </div>
+    <StrictMode>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={isNative ? <Navigate to="/app" replace /> : <Landing />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/terms" element={<Terms />} />
+            <Route path="/cookies" element={<Cookies />} />
+            <Route path="/docs" element={<Docs />} />
+            <Route path="/app" element={<App />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </StrictMode>
   );
 }
 
-// Listen for consent updates to toggle chat-active class
-if (typeof window !== 'undefined') {
-  window.addEventListener('consent-updated', () => {
-    // This will be used by ChatWindow to toggle the chat-active class
-    document.body.classList.remove('chat-active');
-  });
-}
-
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/privacy" element={<Privacy />} />
-          <Route path="/terms" element={<Terms />} />
-          <Route path="/cookies" element={<Cookies />} />
-          <Route path="/docs" element={<Docs />} />
-          <Route path="/app" element={<><App /><ConsentBanner /></>} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
-  </StrictMode>
-);
+createRoot(document.getElementById('root')!).render(<Root />);

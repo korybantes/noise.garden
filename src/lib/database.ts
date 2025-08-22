@@ -182,6 +182,31 @@ export async function initDatabase() {
 		)
 	`;
 
+	// User mutes table
+	await sql`
+		CREATE TABLE IF NOT EXISTS user_mutes (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+			muted_by UUID REFERENCES users(id) ON DELETE SET NULL,
+			reason TEXT NOT NULL,
+			expires_at TIMESTAMPTZ NOT NULL,
+			created_at TIMESTAMPTZ DEFAULT NOW(),
+			UNIQUE(user_id)
+		)
+	`;
+
+	// Device tokens for push notifications
+	await sql`
+		CREATE TABLE IF NOT EXISTS device_tokens (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+			token TEXT UNIQUE NOT NULL,
+			platform TEXT NOT NULL DEFAULT 'android',
+			created_at TIMESTAMPTZ DEFAULT NOW(),
+			last_used TIMESTAMPTZ DEFAULT NOW()
+		)
+	`;
+
 	// Notifications
 	await sql`
 		CREATE TABLE IF NOT EXISTS notifications (
@@ -1082,4 +1107,131 @@ export async function getWhisperThread(parentPostId: string): Promise<Post[]> {
 	`;
 	
 	return result as Post[];
+}
+
+// User muting functions
+export async function muteUser(userId: string, reason: string, mutedBy: string, durationHours: number): Promise<void> {
+	// Check if muter is admin or moderator
+	const muter = await sql`SELECT role FROM users WHERE id = ${mutedBy}`;
+	if (!muter[0] || !['admin', 'moderator'].includes(muter[0].role)) {
+		throw new Error('Unauthorized');
+	}
+	
+	// Check if user exists and is not already muted
+	const user = await sql`SELECT id FROM users WHERE id = ${userId}`;
+	if (!user[0]) {
+		throw new Error('User not found');
+	}
+	
+	// Calculate mute expiry
+	const expiresAt = new Date(Date.now() + durationHours * 60 * 60 * 1000);
+	
+	// Insert or update mute
+	await sql`
+		INSERT INTO user_mutes (user_id, muted_by, reason, expires_at)
+		VALUES (${userId}, ${mutedBy}, ${reason}, ${expiresAt})
+		ON CONFLICT (user_id) 
+		DO UPDATE SET 
+			muted_by = ${mutedBy},
+			reason = ${reason},
+			expires_at = ${expiresAt}
+	`;
+}
+
+export async function unmuteUser(userId: string, unmutedBy: string): Promise<void> {
+	// Check if unmuter is admin or moderator
+	const unmuter = await sql`SELECT role FROM users WHERE id = ${unmutedBy}`;
+	if (!unmuter[0] || !['admin', 'moderator'].includes(unmuter[0].role)) {
+		throw new Error('Unauthorized');
+	}
+	
+	await sql`DELETE FROM user_mutes WHERE user_id = ${userId}`;
+}
+
+export async function isUserMuted(userId: string): Promise<{ muted: boolean; reason?: string; expiresAt?: Date; mutedBy?: string; mutedByUsername?: string }> {
+	const result = await sql`
+		SELECT um.reason, um.expires_at, um.muted_by, u.username as muter_username
+		FROM user_mutes um
+		LEFT JOIN users u ON u.id = um.muted_by
+		WHERE um.user_id = ${userId} AND um.expires_at > NOW()
+	`;
+	
+	if (result.length === 0) {
+		return { muted: false };
+	}
+	
+	return {
+		muted: true,
+		reason: result[0].reason,
+		expiresAt: result[0].expires_at,
+		mutedBy: result[0].muted_by,
+		mutedByUsername: result[0].muter_username
+	};
+}
+
+export async function getMutedUsers(requesterId: string): Promise<Array<{
+	id: string;
+	username: string;
+	reason: string;
+	expiresAt: Date;
+	mutedBy: string;
+	mutedByUsername: string;
+}>> {
+	// Check if requester is admin or moderator
+	const requester = await sql`SELECT role FROM users WHERE id = ${requesterId}`;
+	if (!requester[0] || !['admin', 'moderator'].includes(requester[0].role)) {
+		throw new Error('Unauthorized');
+	}
+	
+	const result = await sql`
+		SELECT 
+			u.id,
+			u.username,
+			um.reason,
+			um.expires_at,
+			um.muted_by,
+			muter.username as muted_by_username
+		FROM user_mutes um
+		JOIN users u ON u.id = um.user_id
+		LEFT JOIN users muter ON muter.id = um.muted_by
+		WHERE um.expires_at > NOW()
+		ORDER BY um.expires_at ASC
+	`;
+	
+	return result as any;
+}
+
+// Push notification functions
+export async function registerDeviceToken(userId: string, token: string, platform: string = 'android'): Promise<void> {
+	await sql`
+		INSERT INTO device_tokens (user_id, token, platform)
+		VALUES (${userId}, ${token}, ${platform})
+		ON CONFLICT (token) 
+		DO UPDATE SET 
+			user_id = ${userId},
+			platform = ${platform},
+			last_used = NOW()
+	`;
+}
+
+export async function getDeviceTokensForUser(userId: string): Promise<string[]> {
+	const result = await sql`
+		SELECT token FROM device_tokens 
+		WHERE user_id = ${userId}
+		ORDER BY last_used DESC
+	`;
+	return result.map(row => row.token);
+}
+
+export async function removeDeviceToken(token: string): Promise<void> {
+	await sql`DELETE FROM device_tokens WHERE token = ${token}`;
+}
+
+export async function getAllDeviceTokens(): Promise<Array<{ userId: string; token: string; platform: string }>> {
+	const result = await sql`
+		SELECT user_id, token, platform 
+		FROM device_tokens 
+		ORDER BY last_used DESC
+	`;
+	return result as any;
 }

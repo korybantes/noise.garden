@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { X, Users, Shield, ShieldCheck, ShieldAlert, UserCheck, BarChart3, RefreshCw, Ban, Unlock, Flag, Eye, EyeOff, Key, Copy, Check } from 'lucide-react';
+import { X, Users, Shield, ShieldCheck, ShieldAlert, UserCheck, BarChart3, RefreshCw, Ban, Unlock, Flag, Eye, EyeOff, Key, Copy, Check, MicOff, Mic, Bell } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
-import { getAllUsers, updateUserRole, getUserStats, UserRole, banUser, unbanUser, getBannedUsers, createAdminInvite } from '../lib/database';
+import { getAllUsers, updateUserRole, getUserStats, UserRole, banUser, unbanUser, getBannedUsers, createAdminInvite, muteUser, unmuteUser, getMutedUsers } from '../lib/database';
 import { useLanguage } from '../hooks/useLanguage';
+import { NotificationService } from '../services/notificationService';
 
 interface AdminPanelProps {
   onClose: () => void;
@@ -72,10 +73,22 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
   const [showBanModal, setShowBanModal] = useState<{ show: boolean; userId: string; username: string }>({ show: false, userId: '', username: '' });
   const [banReason, setBanReason] = useState('');
   const [banning, setBanning] = useState(false);
-  const [activeTab, setActiveTab] = useState<'users' | 'reports' | 'banned' | 'invites'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'reports' | 'banned' | 'muted' | 'invites'>('users');
   const [generatingInvite, setGeneratingInvite] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState('');
+  const [mutedUsers, setMutedUsers] = useState<Array<{
+    id: string;
+    username: string;
+    reason: string;
+    expiresAt: Date;
+    mutedBy: string;
+    mutedByUsername: string;
+  }>>([]);
+  const [showMuteModal, setShowMuteModal] = useState(false);
+  const [muteTarget, setMuteTarget] = useState<User | null>(null);
+  const [muteReason, setMuteReason] = useState('');
+  const [muteDuration, setMuteDuration] = useState(24);
 
   useEffect(() => {
     if (!user) return;
@@ -87,16 +100,18 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
     setLoading(true);
     setError('');
     try {
-      const [usersData, statsData, bannedData, flaggedData, invitesData] = await Promise.all([
+      const [usersData, statsData, bannedData, mutedData, flaggedData, invitesData] = await Promise.all([
         getAllUsers(user.userId),
         getUserStats(user.userId),
         getBannedUsers(user.userId),
+        getMutedUsers(user.userId),
         loadFlaggedPosts(),
         loadInvites()
       ]);
       setUsers(usersData);
       setStats(statsData);
       setBannedUsers(bannedData);
+      setMutedUsers(mutedData);
       setFlaggedPosts(flaggedData);
       setInvites(invitesData);
     } catch (err) {
@@ -292,6 +307,62 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
     }
   };
 
+  const handleUnban = async (userId: string) => {
+    if (!user) return;
+    try {
+      await unbanUser(userId, user.userId);
+      await loadData();
+      setSuccessMessage('User unbanned successfully');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (error) {
+      console.error('Failed to unban user:', error);
+    }
+  };
+
+  const handleMute = async (userId: string, reason: string, durationHours: number) => {
+    if (!user) return;
+    try {
+      await muteUser(userId, reason, user.userId, durationHours);
+      await loadData();
+      setShowMuteModal(false);
+      setMuteTarget(null);
+      setMuteReason('');
+      setMuteDuration(24);
+      setSuccessMessage('User muted successfully');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (error) {
+      console.error('Failed to mute user:', error);
+    }
+  };
+
+  const handleUnmute = async (userId: string) => {
+    if (!user) return;
+    try {
+      await unmuteUser(userId, user.userId);
+      await loadData();
+      setSuccessMessage('User unmuted successfully');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (error) {
+      console.error('Failed to unmute user:', error);
+    }
+  };
+
+  const handleTestNotification = async () => {
+    try {
+      await NotificationService.sendTestNotification();
+      setSuccessMessage('Test notification sent successfully!');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (error) {
+      setError('Failed to send test notification');
+      console.error('Test notification error:', error);
+    }
+  };
+
+  const openMuteModal = (userItem: User) => {
+    setMuteTarget(userItem);
+    setShowMuteModal(true);
+  };
+
   const getRoleBadge = (role: UserRole) => {
     switch (role) {
       case 'admin':
@@ -390,6 +461,17 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
               <span className="sm:hidden">{language === 'tr' ? 'Yasaklı' : 'Banned'}</span>
             </button>
             <button
+              onClick={() => setActiveTab('muted')}
+              className={`px-2 sm:px-4 py-2 font-mono text-xs sm:text-sm transition-colors ${
+                activeTab === 'muted'
+                  ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
+              }`}
+            >
+              <span className="hidden sm:inline">{language === 'tr' ? 'Susturulmuş Kullanıcılar' : 'Muted Users'}</span>
+              <span className="sm:hidden">{language === 'tr' ? 'Susturulmuş' : 'Muted'}</span>
+            </button>
+            <button
               onClick={() => setActiveTab('invites')}
               className={`px-2 sm:px-4 py-2 font-mono text-xs sm:text-sm transition-colors ${
                 activeTab === 'invites'
@@ -454,6 +536,20 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
                 </div>
               </div>
             )}
+
+            {/* Test Notification Button */}
+            <div className="mb-6">
+              <button
+                onClick={handleTestNotification}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md font-mono text-sm hover:bg-blue-700 transition-colors"
+              >
+                <Bell size={16} />
+                {language === 'tr' ? 'Test Bildirimi Gönder' : 'Send Test Notification'}
+              </button>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                {language === 'tr' ? 'Tüm kullanıcılara test bildirimi gönderir' : 'Sends a test notification to all users'}
+              </p>
+            </div>
 
             {/* Users Section */}
             {activeTab === 'users' && (
@@ -527,6 +623,14 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
                               title="Ban User"
                             >
                               <Ban size={12} />
+                            </button>
+                            
+                            <button
+                              onClick={() => openMuteModal(userItem)}
+                              className="text-xs font-mono bg-yellow-600 text-white px-2 py-1 rounded hover:bg-yellow-700 transition-colors"
+                              title="Mute User"
+                            >
+                              <MicOff size={12} />
                             </button>
                           </div>
                         </div>
@@ -651,6 +755,22 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
                                 Quarantine
                               </button>
                             )}
+                            
+                            <button
+                              onClick={() => openMuteModal({ 
+                                id: post.user_id, 
+                                username: post.username, 
+                                created_at: post.created_at, 
+                                role: post.role || 'user', 
+                                avatar_url: post.avatar_url,
+                                bio: null
+                              })}
+                              className="text-xs font-mono bg-yellow-600 text-white px-2 py-1 rounded hover:bg-yellow-700 transition-colors"
+                              title="Mute user"
+                            >
+                              <MicOff size={12} />
+                              Mute
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -694,6 +814,49 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Muted Users Section */}
+            {activeTab === 'muted' && mutedUsers.length > 0 && (
+              <div className="space-y-4">
+                <h3 className="font-mono text-lg font-semibold text-gray-900 dark:text-gray-100">Muted Users</h3>
+                <div className="space-y-3">
+                  {mutedUsers.map((mutedUser) => (
+                    <div
+                      key={mutedUser.id}
+                      className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg border border-yellow-200 dark:border-yellow-800"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-mono text-sm text-gray-900 dark:text-gray-100">
+                            @{mutedUser.username}
+                          </div>
+                          <div className="text-xs text-gray-600 dark:text-gray-400">
+                            Muted {new Date(mutedUser.expiresAt).toLocaleDateString()} {language === 'tr' ? 'tarafından' : 'by'} @{mutedUser.mutedByUsername}
+                          </div>
+                          <div className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
+                            Reason: {mutedUser.reason}
+                          </div>
+                        </div>
+                        
+                        <button
+                          onClick={() => handleUnmute(mutedUser.id)}
+                          className="text-xs font-mono bg-red-600 text-white px-2 py-1 rounded hover:bg-red-700 transition-colors"
+                          title={language === 'tr' ? 'Kullanıcının susturmasını kaldır' : 'Unmute user'}
+                        >
+                          <Mic size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'muted' && mutedUsers.length === 0 && (
+              <div className="text-center py-8 text-gray-500 dark:text-gray-400 font-mono text-sm">
+                {language === 'tr' ? 'Susturulmuş kullanıcı bulunamadı' : 'No muted users found'}
               </div>
             )}
 
@@ -827,6 +990,79 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
                 className="px-4 py-2 bg-red-600 text-white rounded-md font-mono text-sm hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {banning ? (language === 'tr' ? 'Yasaklanıyor...' : 'Banning...') : (language === 'tr' ? 'Kullanıcıyı Yasakla' : 'Ban User')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mute Modal */}
+      {showMuteModal && muteTarget && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-mono text-lg font-semibold text-gray-900 dark:text-gray-100">
+                {language === 'tr' ? 'Kullanıcıyı Sustur' : 'Mute User'}
+              </h3>
+              <button
+                onClick={() => setShowMuteModal(false)}
+                className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                {language === 'tr' ? 'Susturuluyor' : 'Muting'} @{muteTarget.username}
+              </p>
+              
+              <div className="mb-3">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  {language === 'tr' ? 'Susturma sebebi' : 'Reason for mute'}
+                </label>
+                <textarea
+                  value={muteReason}
+                  onChange={(e) => setMuteReason(e.target.value)}
+                  placeholder={language === 'tr' ? 'Susturma sebebini girin...' : 'Enter reason for mute...'}
+                  className="w-full p-3 border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono text-sm resize-none"
+                  rows={3}
+                  maxLength={500}
+                />
+              </div>
+              
+              <div className="mb-3">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  {language === 'tr' ? 'Susturma süresi (saat)' : 'Mute duration (hours)'}
+                </label>
+                <select
+                  value={muteDuration}
+                  onChange={(e) => setMuteDuration(Number(e.target.value))}
+                  className="w-full p-3 border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono text-sm"
+                >
+                  <option value={1}>1 hour</option>
+                  <option value={6}>6 hours</option>
+                  <option value={12}>12 hours</option>
+                  <option value={24}>24 hours</option>
+                  <option value={72}>3 days</option>
+                  <option value={168}>1 week</option>
+                </select>
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowMuteModal(false)}
+                className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-mono text-sm transition-colors"
+              >
+                {language === 'tr' ? 'İptal' : 'Cancel'}
+              </button>
+              <button
+                onClick={() => handleMute(muteTarget.id, muteReason, muteDuration)}
+                disabled={!muteReason.trim()}
+                className="px-4 py-2 bg-yellow-600 text-white rounded-md font-mono text-sm hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {language === 'tr' ? 'Kullanıcıyı Sustur' : 'Mute User'}
               </button>
             </div>
           </div>

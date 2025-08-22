@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "144831887598",
+    "project_id": "noisegarden-305c5",
+    "storage_bucket": "noisegarden-305c5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:144831887598:android:c4732bf6f5a2fdbd719bff",
+        "android_client_info": {
+          "package_name": "com.noisegarden.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB8FmsbTYAcN0SJ8iuKaxG6hEh3nB5Q7cQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

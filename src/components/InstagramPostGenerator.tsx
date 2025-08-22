@@ -2,6 +2,14 @@ import { useState, useRef } from 'react';
 import { X, Download, Share2, Palette, Type } from 'lucide-react';
 import html2canvas from 'html2canvas';
 
+// TypeScript declarations for Web Share API
+interface ShareData {
+  title?: string;
+  text?: string;
+  url?: string;
+  files?: File[];
+}
+
 interface InstagramPostGeneratorProps {
   post: {
     id: string;
@@ -85,17 +93,82 @@ export function InstagramPostGenerator({ post, onClose }: InstagramPostGenerator
       
       // Convert to blob for sharing
       canvas.toBlob(async (blob: Blob | null) => {
-				if (blob && (navigator as any).share) {
+        if (blob) {
+          try {
+            // Try to use Web Share API if available
+            if ('share' in navigator) {
           const file = new File([blob], 'instagram-story.png', { type: 'image/png' });
+              
+              try {
 					await (navigator as any).share({
-            title: 'Check out this post!',
-            text: post.content.substring(0, 100) + '...',
+                  title: `Post by @${post.username}`,
+                  text: post.content.substring(0, 100) + (post.content.length > 100 ? '...' : ''),
             files: [file]
           });
+                return; // Successfully shared
+              } catch (shareApiError) {
+                console.log('Web Share API failed, falling back to download');
+              }
+            }
+            
+            // Fallback: Try to open Instagram directly with the image
+            const url = URL.createObjectURL(blob);
+            
+            // Detect if we're on mobile
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            
+            if (isMobile) {
+              // Try to open Instagram app or download
+              try {
+                // Create a temporary link to trigger download
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `instagram-story-${post.id}.png`;
+                link.click();
+                
+                // Show instructions
+                setTimeout(() => {
+                  const message = `Image downloaded! To share to Instagram:
+1. Open Instagram app
+2. Tap the "+" button
+3. Select "Story" 
+4. Choose the downloaded image from your gallery
+5. Add any text and share!`;
+                  alert(message);
+                }, 100);
+              } catch (downloadError) {
+                console.error('Download error:', downloadError);
+                alert('Failed to download image. Please try again.');
+              }
+            } else {
+              // Desktop fallback
+              const link = document.createElement('a');
+              link.href = url;
+              link.download = `instagram-story-${post.id}.png`;
+              link.click();
+              alert('Image downloaded! You can upload it to Instagram manually.');
+            }
+            
+            URL.revokeObjectURL(url);
+            
+          } catch (shareError) {
+            console.error('Share error:', shareError);
+            
+            // Final fallback: download the file
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `instagram-story-${post.id}.png`;
+            link.click();
+            URL.revokeObjectURL(url);
+            
+            alert('Sharing failed. Image downloaded instead. You can manually share it to Instagram.');
+          }
         }
       }, 'image/png');
     } catch (error) {
-      console.error('Error sharing:', error);
+      console.error('Error generating image:', error);
+      alert('Failed to generate image. Please try again.');
     } finally {
       setIsGenerating(false);
     }

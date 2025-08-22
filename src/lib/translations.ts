@@ -19,6 +19,21 @@ export interface Translations {
   turkish: string;
   dil: string;
   
+  // Welcome Page
+  welcomeToNoiseGarden: string;
+  welcomeDescription: string;
+  communityFirst: string;
+  communityDescription: string;
+  communityGuidelines: string;
+  guidelinesDescription: string;
+  keyFeatures: string;
+  featuresDescription: string;
+  getStarted: string;
+  iAccept: string;
+  termsOfService: string;
+  privacyPolicy: string;
+  and: string;
+  
   // Navigation
   feed: string;
   profile: string;
@@ -266,6 +281,21 @@ export const translations: Record<'en' | 'tr', Translations> = {
     turkish: 'Turkish',
     dil: 'Language',
     
+    // Welcome Page
+    welcomeToNoiseGarden: 'Welcome to noise.garden',
+    welcomeDescription: 'Anonymous thoughts, beautifully simple',
+    communityFirst: 'Community First',
+    communityDescription: 'Share ephemeral ideas in topic rooms, with privacy-first design and humane defaults.',
+    communityGuidelines: 'Community Guidelines',
+    guidelinesDescription: 'Be respectful, be kind, and be mindful of others.',
+    keyFeatures: 'Key Features',
+    featuresDescription: 'Anonymity, privacy, and ease of use.',
+    getStarted: 'Get Started',
+    iAccept: 'I Accept',
+    termsOfService: 'Terms of Service',
+    privacyPolicy: 'Privacy Policy',
+    and: 'and',
+    
     // Navigation
     feed: 'feed',
     profile: 'profile',
@@ -511,6 +541,21 @@ export const translations: Record<'en' | 'tr', Translations> = {
     english: 'English',
     turkish: 'Türkçe',
     dil: 'Dil',
+    
+    // Welcome Page
+    welcomeToNoiseGarden: 'noise.garden\'a hoş geldiniz',
+    welcomeDescription: 'Anonim düşünceler, güzelce basit',
+    communityFirst: 'Topluluk Önceliği',
+    communityDescription: 'Gizlilik öncelikli tasarım ve insancıl varsayımlarla konu odalarında geçici fikirleri paylaşın.',
+    communityGuidelines: 'Topluluk Rehberleri',
+    guidelinesDescription: 'Dilerseniz, diğerleriyle dostlukla ve dikkatle birlikte olun.',
+    keyFeatures: 'Ana Özellikler',
+    featuresDescription: 'Anonimlik, gizlilik ve kolay kullanım.',
+    getStarted: 'Başla',
+    iAccept: 'Kabul Ediyorum',
+    termsOfService: 'Kullanım Koşulları',
+    privacyPolicy: 'Gizlilik Politikası',
+    and: 've',
     
     // Navigation
     feed: 'akış',

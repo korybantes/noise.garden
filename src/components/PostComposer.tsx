@@ -1,10 +1,11 @@
 import { useRef, useState, useEffect } from 'react';
-import { Send, X, Smile, Clock, MoreHorizontal, Lock, ListPlus } from 'lucide-react';
+import { Send, X, Smile, Clock, MoreHorizontal, Lock, ListPlus, MicOff } from 'lucide-react';
 import { createPost, createPollPost, createMention } from '../lib/database';
 import { useAuth } from '../hooks/useAuth';
 import { containsLink, sanitizeLinks } from '../lib/validation';
 import { t } from '../lib/translations';
 import { useLanguage } from '../hooks/useLanguage';
+import { useMuteStatus } from '../hooks/useMuteStatus';
 
 interface PostComposerProps {
   onPostCreated: () => void;
@@ -39,6 +40,7 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const { user } = useAuth();
   const { language } = useLanguage();
+  const { muteStatus, loading: muteLoading } = useMuteStatus();
 
 	// Auto-fill hashtag when in a room
 	useEffect(() => {
@@ -171,6 +173,22 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
 
   return (
 		<div className="ng-card p-4 mb-6">
+      {muteStatus.muted && (
+        <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900 rounded-md">
+          <div className="flex items-center gap-2 text-red-800 dark:text-red-200">
+            <MicOff size={16} />
+            <div className="flex-1">
+              <p className="font-mono text-sm font-medium">You are muted</p>
+              <p className="font-mono text-xs text-red-600 dark:text-red-300">
+                {muteStatus.reason && `Reason: ${muteStatus.reason}`}
+                {muteStatus.expiresAt && ` • Expires: ${new Date(muteStatus.expiresAt).toLocaleString()}`}
+                {muteStatus.mutedByUsername && ` • Muted by: @${muteStatus.mutedByUsername}`}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {replyTo && (
         <div className="mb-3 pb-3 border-b border-gray-100 dark:border-gray-800">
           <div className="flex items-center justify-between">
@@ -185,7 +203,17 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
       
       <form onSubmit={handleSubmit}>
 				{!asPoll && (
-					<textarea ref={textareaRef} value={content} onChange={(e) => setContent(e.target.value)} placeholder={replyTo ? t('writeYourReply', language) : t('shareRandomThought', language)} className="w-full p-3 bg-transparent border-0 resize-none focus:outline-none font-mono text-sm placeholder-gray-400 dark:placeholder-gray-500 text-gray-900 dark:text-gray-100" rows={3} maxLength={280} onKeyDown={handleKeyDown} />
+					<textarea 
+						ref={textareaRef} 
+						value={content} 
+						onChange={(e) => setContent(e.target.value)} 
+						placeholder={replyTo ? t('writeYourReply', language) : t('shareRandomThought', language)} 
+						className="w-full p-3 bg-transparent border-0 resize-none focus:outline-none font-mono text-sm placeholder-gray-400 dark:placeholder-gray-500 text-gray-900 dark:text-gray-100" 
+						rows={3} 
+						maxLength={280} 
+						onKeyDown={handleKeyDown}
+						disabled={muteStatus.muted}
+					/>
 				)}
 
         <div className="flex items-center justify-between mt-3 relative">
@@ -220,7 +248,7 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
               <MoreHorizontal size={16} />
             </button>
             
-            <button type="submit" disabled={loading || (!asPoll && !content.trim())} className="bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 p-2 rounded-md hover:bg-gray-800 dark:hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+            <button type="submit" disabled={loading || (!asPoll && !content.trim()) || muteStatus.muted} className="bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 p-2 rounded-md hover:bg-gray-800 dark:hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
               <Send size={16} />
             </button>
           </div>

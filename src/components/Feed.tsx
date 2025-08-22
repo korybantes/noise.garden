@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { RefreshCw, ArrowLeft, Tag } from 'lucide-react';
 import { Post as PostType, getRandomPosts, getPostById, getPostReplies } from '../lib/database';
 import { Post } from './Post';
@@ -9,6 +9,7 @@ import { useNavigation } from '../hooks/useNavigation';
 import { Select } from './ui/Select';
 import { t } from '../lib/translations';
 import { useLanguage } from '../hooks/useLanguage';
+import { hapticLight } from '../lib/haptics';
 
 export function Feed() {
   const [posts, setPosts] = useState<PostType[]>([]);
@@ -24,10 +25,34 @@ export function Feed() {
   const { language } = useLanguage();
   const { currentRoom, clearRoom } = useNavigation();
 
+  const touchStartY = useRef<number | null>(null);
+  const pulling = useRef(false);
+
   const settings = useMemo(() => loadFeedSettings(), [settingsVersion]);
 
   const clearRoomFilter = () => {
     clearRoom();
+  };
+
+  const persistCache = (items: PostType[]) => {
+    try {
+      const payload = { ts: Date.now(), items: items.slice(0, 50) };
+      localStorage.setItem('feed_cache', JSON.stringify(payload));
+    } catch {}
+  };
+
+  const hydrateFromCache = () => {
+    try {
+      const raw = localStorage.getItem('feed_cache');
+      if (!raw) return false;
+      const parsed = JSON.parse(raw);
+      if (!parsed?.items) return false;
+      setPosts(parsed.items as PostType[]);
+      setLoading(false);
+      return true;
+    } catch {
+      return false;
+    }
   };
 
   const loadPosts = async (opts?: { silent?: boolean; reset?: boolean }) => {
@@ -35,7 +60,6 @@ export function Feed() {
       if (!opts?.silent) setLoading(true);
       const newOffset = opts?.reset ? 0 : offset;
       const newPosts = await getRandomPosts(20, newOffset, sortBy);
-      
       if (opts?.reset) {
       setPosts(newPosts);
         setOffset(20);
@@ -43,7 +67,7 @@ export function Feed() {
         setPosts(prev => [...prev, ...newPosts]);
         setOffset(prev => prev + 20);
       }
-      
+      persistCache(opts?.reset ? newPosts : [...posts, ...newPosts]);
       setHasMore(newPosts.length === 20);
     } catch (error) {
       console.error('Failed to load posts:', error);
@@ -81,8 +105,10 @@ export function Feed() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, [loadMore]);
 
+  // Initial load; try cache first
   useEffect(() => {
-    loadPosts({ reset: true });
+    const hadCache = hydrateFromCache();
+    loadPosts({ reset: true, silent: hadCache });
     const onFocus = () => loadPosts({ silent: true, reset: true });
     const onVis = () => { if (!document.hidden) onFocus(); };
     const onPop = () => setSettingsVersion(v => v + 1);
@@ -110,6 +136,37 @@ export function Feed() {
     })();
   }, [route?.name === 'post' ? (route as any).params?.id : '']);
 
+  // Pull-to-refresh via downward swipe at top
+  useEffect(() => {
+    const onTouchStart = (e: TouchEvent) => {
+      if (window.scrollY === 0) {
+        touchStartY.current = e.touches[0].clientY;
+        pulling.current = true;
+      }
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (!pulling.current || touchStartY.current == null) return;
+      const dy = e.touches[0].clientY - touchStartY.current;
+      if (dy > 70) {
+        pulling.current = false;
+        hapticLight();
+        loadPosts({ silent: false, reset: true });
+      }
+    };
+    const onTouchEnd = () => {
+      pulling.current = false;
+      touchStartY.current = null;
+    };
+    window.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('touchmove', onTouchMove, { passive: true });
+    window.addEventListener('touchend', onTouchEnd, { passive: true });
+    return () => {
+      window.removeEventListener('touchstart', onTouchStart as any);
+      window.removeEventListener('touchmove', onTouchMove as any);
+      window.removeEventListener('touchend', onTouchEnd as any);
+    };
+  }, [sortBy]);
+
   const handlePostCreated = () => {
     if (viewingReplies) {
       loadReplies(viewingReplies.post);
@@ -127,7 +184,6 @@ export function Feed() {
     const muted = settings.mutedWords || [];
     const filteredByMute = posts.filter(p => !contentMatchesMuted(`${p.content} ${p.username}`, muted));
     if (!currentRoom) return filteredByMute;
-    // naive room filter: include posts containing the tag
     return filteredByMute.filter(p => p.content.toLowerCase().includes(currentRoom.toLowerCase()));
   }, [posts, settings, currentRoom]);
 
@@ -141,9 +197,7 @@ export function Feed() {
             <button
               onClick={() => { 
                 setViewingReplies(null); 
-                // Use navigate to ensure proper routing
                 window.history.pushState({}, '', window.location.pathname + window.location.search);
-                // Force a re-render by dispatching popstate event
                 window.dispatchEvent(new PopStateEvent('popstate'));
               }}
               className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-mono text-sm transition-colors"
@@ -153,7 +207,6 @@ export function Feed() {
             </button>
           </div>
 
-          {/* Original Post */}
           <Post
             post={viewingReplies.post}
             onReply={setReplyTo}
@@ -161,7 +214,6 @@ export function Feed() {
             inlineComposer={false}
           />
 
-          {/* Reply Composer */}
           {replyTo && replyTo.id === viewingReplies.post.id && (
             <div className="mt-6">
               <PostComposer
@@ -172,7 +224,6 @@ export function Feed() {
             </div>
           )}
 
-          {/* Replies */}
           <div className="mt-6 space-y-4">
             {viewingReplies.replies.length === 0 ? (
               <div className="text-center py-8 text-gray-500 dark:text-gray-400 font-mono text-sm">

@@ -1,15 +1,19 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { getUserPostsByUsername, Post as PostType, getUserByUsername, getInviterForUser, isUserBanned, getPostById } from '../lib/database';
+import { getUserPostsByUsername, Post as PostType, getUserByUsername, getInviterForUser, isUserBanned, getPostById, muteUser, unmuteUser, isUserMuted } from '../lib/database';
 import { useNavigation } from '../hooks/useNavigation';
 import { Post } from './Post';
-import { ShieldCheck, ShieldAlert, Link2 } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, Link2, MicOff, Mic, Bell, MessageSquare, AtSign } from 'lucide-react';
 import { useRouter } from '../hooks/useRouter';
+import { useLanguage } from '../hooks/useLanguage';
+import { useLocalNotifications } from '../hooks/useLocalNotifications';
 
 export function Profile() {
   const { user } = useAuth();
   const { profileUsername, setProfileUsername, setView } = useNavigation();
   const { navigateToPost } = useRouter();
+  const { language } = useLanguage();
+  const { sendTestNotification, sendMessageNotification, sendPostNotification, sendMentionNotification } = useLocalNotifications();
   const username = profileUsername || user?.username;
   const viewingOwn = username === user?.username;
 
@@ -21,6 +25,11 @@ export function Profile() {
   const [invitedBy, setInvitedBy] = useState<string | null>(null);
   const [banned, setBanned] = useState<{ banned: boolean; reason?: string; bannedBy?: string } | null>(null);
   const [joinedAt, setJoinedAt] = useState<string | null>(null);
+  const [muted, setMuted] = useState<{ muted: boolean; reason?: string; expiresAt?: Date; mutedBy?: string; mutedByUsername?: string } | null>(null);
+  const [showMuteModal, setShowMuteModal] = useState(false);
+  const [muteReason, setMuteReason] = useState('');
+  const [muteDuration, setMuteDuration] = useState(24);
+  const [muting, setMuting] = useState(false);
 
   const load = async (opts?: { silent?: boolean }) => {
     if (!username) return;
@@ -38,6 +47,8 @@ export function Profile() {
         if (iv?.inviter_username) setInvitedBy(iv.inviter_username);
         const banInfo = await isUserBanned(u.id);
         setBanned(banInfo);
+        const muteInfo = await isUserMuted(u.id);
+        setMuted(muteInfo);
       }
     } finally {
       if (!opts?.silent) setLoading(false);
@@ -58,6 +69,44 @@ export function Profile() {
 
   const handleDeleted = (postId: string) => {
     setPosts(prev => prev.filter(p => p.id !== postId));
+  };
+
+  const handleMute = async () => {
+    if (!user || !username || !muteReason.trim()) return;
+    setMuting(true);
+    try {
+      const targetUser = await getUserByUsername(username);
+      if (!targetUser) return;
+      
+      await muteUser(targetUser.id, muteReason.trim(), user.userId, muteDuration);
+      setShowMuteModal(false);
+      setMuteReason('');
+      setMuteDuration(24);
+      
+      // Refresh mute status
+      const muteInfo = await isUserMuted(targetUser.id);
+      setMuted(muteInfo);
+    } catch (error) {
+      console.error('Failed to mute user:', error);
+    } finally {
+      setMuting(false);
+    }
+  };
+
+  const handleUnmute = async () => {
+    if (!user || !username) return;
+    try {
+      const targetUser = await getUserByUsername(username);
+      if (!targetUser) return;
+      
+      await unmuteUser(targetUser.id, user.userId);
+      
+      // Refresh mute status
+      const muteInfo = await isUserMuted(targetUser.id);
+      setMuted(muteInfo);
+    } catch (error) {
+      console.error('Failed to unmute user:', error);
+    }
   };
 
   const RoleBadge = () => {
@@ -119,6 +168,51 @@ export function Profile() {
           {bio && (
             <div className="mt-3 font-mono text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{bio}</div>
           )}
+          
+          {/* Notification Testing Section (only show on own profile) */}
+          {viewingOwn && (
+            <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <div className="flex items-center gap-2 mb-3">
+                <Bell size={16} className="text-blue-600 dark:text-blue-400" />
+                <span className="font-mono text-sm font-medium text-blue-800 dark:text-blue-200">
+                  Test Notifications
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={sendTestNotification}
+                  className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-md font-mono text-xs hover:bg-blue-700 transition-colors"
+                >
+                  <Bell size={12} />
+                  Test
+                </button>
+                <button
+                  onClick={() => sendMessageNotification('John Doe')}
+                  className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded-md font-mono text-xs hover:bg-green-700 transition-colors"
+                >
+                  <MessageSquare size={12} />
+                  Message
+                </button>
+                <button
+                  onClick={() => sendPostNotification('Jane Smith')}
+                  className="flex items-center gap-2 px-3 py-2 bg-purple-600 text-white rounded-md font-mono text-xs hover:bg-purple-700 transition-colors"
+                >
+                  <Link2 size={12} />
+                  New Post
+                </button>
+                <button
+                  onClick={() => sendMentionNotification('Bob Wilson')}
+                  className="flex items-center gap-2 px-3 py-2 bg-orange-600 text-white rounded-md font-mono text-xs hover:bg-orange-700 transition-colors"
+                >
+                  <AtSign size={12} />
+                  Mention
+                </button>
+              </div>
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+                Test different notification types to see how they work
+              </p>
+            </div>
+          )}
         </div>
 
         {isSuspended && (
@@ -128,6 +222,46 @@ export function Profile() {
             </div>
             {banned?.reason && (
               <div className="mt-1 text-xs font-mono text-red-600 dark:text-red-400">Reason: {banned.reason}</div>
+            )}
+          </div>
+        )}
+
+        {muted?.muted && (
+          <div className="p-4 border border-yellow-200 dark:border-yellow-900 rounded bg-yellow-50 dark:bg-yellow-900/20">
+            <div className="text-sm font-mono text-yellow-700 dark:text-yellow-300">
+              This user is currently muted.
+            </div>
+            {muted.reason && (
+              <div className="mt-1 text-xs font-mono text-yellow-600 dark:text-yellow-400">Reason: {muted.reason}</div>
+            )}
+            {muted.expiresAt && (
+              <div className="mt-1 text-xs font-mono text-yellow-600 dark:text-yellow-400">Expires: {new Date(muted.expiresAt).toLocaleString()}</div>
+            )}
+            {muted.mutedByUsername && (
+              <div className="mt-1 text-xs font-mono text-yellow-600 dark:text-yellow-400">Muted by: @{muted.mutedByUsername}</div>
+            )}
+          </div>
+        )}
+
+        {/* Mute/Unmute Button for Admins/Mods */}
+        {!viewingOwn && user && ['admin', 'moderator'].includes(user.role) && (
+          <div className="flex justify-end">
+            {muted?.muted ? (
+              <button
+                onClick={handleUnmute}
+                className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded-md font-mono text-sm hover:bg-green-700 transition-colors"
+              >
+                <Mic size={14} />
+                {language === 'tr' ? 'Susturmayı Kaldır' : 'Unmute User'}
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowMuteModal(true)}
+                className="flex items-center gap-2 px-3 py-2 bg-yellow-600 text-white rounded-md font-mono text-sm hover:bg-yellow-700 transition-colors"
+              >
+                <MicOff size={14} />
+                {language === 'tr' ? 'Kullanıcıyı Sustur' : 'Mute User'}
+              </button>
             )}
           </div>
         )}
@@ -152,6 +286,79 @@ export function Profile() {
           </div>
         )}
       </div>
+
+      {/* Mute Modal */}
+      {showMuteModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-mono text-lg font-semibold text-gray-900 dark:text-gray-100">
+                {language === 'tr' ? 'Kullanıcıyı Sustur' : 'Mute User'}
+              </h3>
+              <button
+                onClick={() => setShowMuteModal(false)}
+                className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                {language === 'tr' ? 'Susturuluyor' : 'Muting'} @{username}
+              </p>
+              
+              <div className="mb-3">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  {language === 'tr' ? 'Susturma sebebi' : 'Reason for mute'}
+                </label>
+                <textarea
+                  value={muteReason}
+                  onChange={(e) => setMuteReason(e.target.value)}
+                  placeholder={language === 'tr' ? 'Susturma sebebini girin...' : 'Enter reason for mute...'}
+                  className="w-full p-3 border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono text-sm resize-none"
+                  rows={3}
+                  maxLength={500}
+                />
+              </div>
+              
+              <div className="mb-3">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  {language === 'tr' ? 'Susturma süresi (saat)' : 'Mute duration (hours)'}
+                </label>
+                <select
+                  value={muteDuration}
+                  onChange={(e) => setMuteDuration(Number(e.target.value))}
+                  className="w-full p-3 border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono text-sm"
+                >
+                  <option value={1}>1 hour</option>
+                  <option value={6}>6 hours</option>
+                  <option value={12}>12 hours</option>
+                  <option value={24}>24 hours</option>
+                  <option value={72}>3 days</option>
+                  <option value={168}>1 week</option>
+                </select>
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowMuteModal(false)}
+                className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-mono text-sm transition-colors"
+              >
+                {language === 'tr' ? 'İptal' : 'Cancel'}
+              </button>
+              <button
+                onClick={handleMute}
+                disabled={!muteReason.trim() || muting}
+                className="px-4 py-2 bg-yellow-600 text-white rounded-md font-mono text-sm hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {muting ? (language === 'tr' ? 'Susturuluyor...' : 'Muting...') : (language === 'tr' ? 'Kullanıcıyı Sustur' : 'Mute User')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

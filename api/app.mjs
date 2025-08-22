@@ -1,7 +1,28 @@
 import { neon } from '@neondatabase/serverless';
 import { jwtVerify } from 'jose';
+import admin from 'firebase-admin';
 
 export const config = { runtime: 'nodejs' };
+
+// Initialize Firebase Admin SDK
+// You'll need to add your Firebase service account key as an environment variable
+let firebaseApp;
+try {
+  // For development, you can use a service account key file
+  // In production, use environment variables
+  if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+    firebaseApp = admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount)
+    });
+  } else {
+    // For development without Firebase (will log warnings)
+    console.log('Firebase not configured. Push notifications will be logged but not sent.');
+  }
+} catch (error) {
+  console.log('Firebase initialization failed:', error.message);
+  console.log('Push notifications will be logged but not sent.');
+}
 
 // Handle different environment variable names for Vercel
 const dbUrl = process.env.NEON_DB || process.env.VITE_NEON_DB || process.env.DATABASE_URL;
@@ -49,7 +70,9 @@ export default async function handler(req, res) {
         await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS image_url TEXT`;
         await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS is_whisper BOOLEAN DEFAULT FALSE`;
         await sql`CREATE TABLE IF NOT EXISTS banned_users (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id UUID REFERENCES users(id) ON DELETE CASCADE, banned_by UUID REFERENCES users(id) ON DELETE SET NULL, reason TEXT NOT NULL, banned_at TIMESTAMPTZ DEFAULT NOW(), UNIQUE(user_id))`;
+        await sql`CREATE TABLE IF NOT EXISTS user_mutes (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id UUID REFERENCES users(id) ON DELETE CASCADE, muted_by UUID REFERENCES users(id) ON DELETE SET NULL, reason TEXT NOT NULL, expires_at TIMESTAMPTZ NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW(), UNIQUE(user_id))`;
         await sql`CREATE TABLE IF NOT EXISTS reply_keys (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), key_hash TEXT NOT NULL, post_id UUID REFERENCES posts(id) ON DELETE CASCADE, creator_id UUID REFERENCES users(id) ON DELETE CASCADE, recipient_id UUID REFERENCES users(id) ON DELETE CASCADE, expires_at TIMESTAMPTZ NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`;
+        await sql`CREATE TABLE IF NOT EXISTS device_tokens (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id UUID REFERENCES users(id) ON DELETE CASCADE, token TEXT UNIQUE NOT NULL, platform TEXT NOT NULL DEFAULT 'android', created_at TIMESTAMPTZ DEFAULT NOW(), last_used TIMESTAMPTZ DEFAULT NOW())`;
         return res.status(200).json({ ok: true });
       }
 
@@ -171,28 +194,265 @@ export default async function handler(req, res) {
         ]);
         return res.status(200).json({ totalUsers: Number(usersResult[0]?.count || 0), totalPosts: Number(postsResult[0]?.count || 0), totalInvites: Number(invitesResult[0]?.count || 0) });
       }
+      // Banning functions
       case 'banUser': {
-        if (!me || (me.role !== 'admin' && me.role !== 'moderator')) return res.status(403).json({ error: 'forbidden' });
+        if (!me) return res.status(401).json({ error: 'unauthorized' });
+        if (me.role !== 'admin' && me.role !== 'moderator') return res.status(403).json({ error: 'forbidden' });
         const { userId, reason } = args;
-        await sql`INSERT INTO banned_users (user_id, banned_by, reason) VALUES (${userId}, ${me.userId}, ${reason}) ON CONFLICT (user_id) DO UPDATE SET banned_by = ${me.userId}, reason = ${reason}, banned_at = NOW()`;
+        
+        // Check if user exists
+        const user = await sql`SELECT id FROM users WHERE id = ${userId}`;
+        if (user.length === 0) return res.status(404).json({ error: 'user_not_found' });
+        
+        await sql`
+          INSERT INTO banned_users (user_id, banned_by, reason)
+          VALUES (${userId}, ${me.userId}, ${reason})
+          ON CONFLICT (user_id) 
+          DO UPDATE SET 
+            banned_by = ${me.userId},
+            reason = ${reason},
+            banned_at = NOW()
+        `;
         return res.status(200).json({ ok: true });
       }
       case 'unbanUser': {
-        if (!me || (me.role !== 'admin' && me.role !== 'moderator')) return res.status(403).json({ error: 'forbidden' });
+        if (!me) return res.status(401).json({ error: 'unauthorized' });
+        if (me.role !== 'admin' && me.role !== 'moderator') return res.status(403).json({ error: 'forbidden' });
         const { userId } = args;
         await sql`DELETE FROM banned_users WHERE user_id = ${userId}`;
         return res.status(200).json({ ok: true });
       }
       case 'isUserBanned': {
+        if (!me) return res.status(401).json({ error: 'unauthorized' });
         const { userId } = args;
-        const rows = await sql`SELECT bu.reason, bu.banned_at, bu.banned_by, u.username as banner_username FROM banned_users bu LEFT JOIN users u ON u.id = bu.banned_by WHERE bu.user_id = ${userId}`;
-        if (!rows[0]) return res.status(200).json({ banned: false });
-        return res.status(200).json({ banned: true, reason: rows[0].reason, bannedAt: rows[0].banned_at, bannedBy: rows[0].banner_username });
+        const result = await sql`
+          SELECT bu.reason, bu.banned_at, bu.banned_by, u.username as banner_username
+          FROM banned_users bu
+          LEFT JOIN users u ON u.id = bu.banned_by
+          WHERE bu.user_id = ${userId}
+        `;
+        
+        if (result.length === 0) {
+          return res.status(200).json({ banned: false });
+        }
+        
+        return res.status(200).json({
+          banned: true,
+          reason: result[0].reason,
+          bannedAt: result[0].banned_at,
+          bannedBy: result[0].banner_username
+        });
       }
       case 'getBannedUsers': {
-        if (!me || (me.role !== 'admin' && me.role !== 'moderator')) return res.status(403).json({ error: 'forbidden' });
-        const rows = await sql`SELECT u.id, u.username, bu.reason, bu.banned_at, banner.username as banned_by FROM banned_users bu JOIN users u ON u.id = bu.user_id LEFT JOIN users banner ON banner.id = bu.banned_by ORDER BY bu.banned_at DESC`;
+        if (!me) return res.status(401).json({ error: 'unauthorized' });
+        if (me.role !== 'admin' && me.role !== 'moderator') return res.status(403).json({ error: 'forbidden' });
+        const result = await sql`
+          SELECT 
+            u.id,
+            u.username,
+            bu.reason,
+            bu.banned_at,
+            banner.username as banned_by
+          FROM banned_users bu
+          JOIN users u ON u.id = bu.user_id
+          LEFT JOIN users banner ON banner.id = bu.banned_by
+          ORDER BY bu.banned_at DESC
+        `;
+        return res.status(200).json(result);
+      }
+
+      // User muting functions
+      case 'muteUser': {
+        if (!me) return res.status(401).json({ error: 'unauthorized' });
+        if (me.role !== 'admin' && me.role !== 'moderator') return res.status(403).json({ error: 'forbidden' });
+        const { userId, reason, durationHours } = args;
+        
+        // Check if user exists
+        const user = await sql`SELECT id FROM users WHERE id = ${userId}`;
+        if (user.length === 0) return res.status(404).json({ error: 'user_not_found' });
+        
+        // Calculate mute expiry
+        const expiresAt = new Date(Date.now() + durationHours * 60 * 60 * 1000);
+        
+        // Insert or update mute
+        await sql`
+          INSERT INTO user_mutes (user_id, muted_by, reason, expires_at)
+          VALUES (${userId}, ${me.userId}, ${reason}, ${expiresAt})
+          ON CONFLICT (user_id) 
+          DO UPDATE SET 
+            muted_by = ${me.userId},
+            reason = ${reason},
+            expires_at = ${expiresAt}
+        `;
+        return res.status(200).json({ ok: true });
+      }
+      case 'unmuteUser': {
+        if (!me) return res.status(401).json({ error: 'unauthorized' });
+        if (me.role !== 'admin' && me.role !== 'moderator') return res.status(403).json({ error: 'forbidden' });
+        const { userId } = args;
+        await sql`DELETE FROM user_mutes WHERE user_id = ${userId}`;
+        return res.status(200).json({ ok: true });
+      }
+      case 'isUserMuted': {
+        if (!me) return res.status(401).json({ error: 'unauthorized' });
+        const { userId } = args;
+        const result = await sql`
+          SELECT um.reason, um.expires_at, um.muted_by, u.username as muter_username
+          FROM user_mutes um
+          LEFT JOIN users u ON u.id = um.muted_by
+          WHERE um.user_id = ${userId} AND um.expires_at > NOW()
+        `;
+        
+        if (result.length === 0) {
+          return res.status(200).json({ muted: false });
+        }
+        
+        return res.status(200).json({
+          muted: true,
+          reason: result[0].reason,
+          expiresAt: result[0].expires_at,
+          mutedBy: result[0].muted_by,
+          mutedByUsername: result[0].muter_username
+        });
+      }
+      case 'getMutedUsers': {
+        if (!me) return res.status(401).json({ error: 'unauthorized' });
+        if (me.role !== 'admin' && me.role !== 'moderator') return res.status(403).json({ error: 'forbidden' });
+        const result = await sql`
+          SELECT 
+            u.id,
+            u.username,
+            um.reason,
+            um.expires_at,
+            um.muted_by,
+            muter.username as muted_by_username
+          FROM user_mutes um
+          JOIN users u ON u.id = um.user_id
+          LEFT JOIN users muter ON muter.id = um.muted_by
+          WHERE um.expires_at > NOW()
+          ORDER BY um.expires_at ASC
+        `;
+        return res.status(200).json(result);
+      }
+
+      // Push notification endpoints
+      case 'registerDeviceToken': {
+        if (!me) return res.status(401).json({ error: 'unauthorized' });
+        const { deviceToken, platform = 'android' } = args;
+        
+        await sql`
+          INSERT INTO device_tokens (user_id, token, platform)
+          VALUES (${me.userId}, ${deviceToken}, ${platform})
+          ON CONFLICT (token) 
+          DO UPDATE SET 
+            user_id = ${me.userId},
+            platform = ${platform},
+            last_used = NOW()
+        `;
+        return res.status(200).json({ ok: true });
+      }
+
+      case 'sendNotificationToUser': {
+        if (!me) return res.status(401).json({ error: 'unauthorized' });
+        const { userId, payload } = args;
+        
+        // Get device tokens for the user
+        const tokens = await sql`SELECT token FROM device_tokens WHERE user_id = ${userId}`;
+        const deviceTokens = tokens.map(t => t.token);
+        
+        if (deviceTokens.length === 0) {
+          return res.status(200).json({ ok: true, message: 'No device tokens found for user' });
+        }
+        
+        if (firebaseApp) {
+          try {
+            const message = {
+              notification: {
+                title: payload.title,
+                body: payload.body,
+              },
+              data: payload.data || {},
+              tokens: deviceTokens,
+            };
+            
+            const response = await admin.messaging().sendMulticast(message);
+            console.log('Successfully sent notification:', response);
+            return res.status(200).json({ 
+              ok: true, 
+              successCount: response.successCount,
+              failureCount: response.failureCount 
+            });
+          } catch (error) {
+            console.error('Error sending notification:', error);
+            return res.status(500).json({ error: 'failed_to_send_notification' });
+          }
+        } else {
+          // Log notification for development
+          console.log('Notification would be sent:', { userId, payload, deviceTokens });
+          return res.status(200).json({ ok: true, message: 'Notification logged (Firebase not configured)' });
+        }
+      }
+
+      case 'sendNotificationToAllUsers': {
+        if (!me) return res.status(401).json({ error: 'unauthorized' });
+        const { payload } = args;
+        
+        // Get all device tokens
+        const tokens = await sql`SELECT token FROM device_tokens ORDER BY last_used DESC`;
+        const deviceTokens = tokens.map(t => t.token);
+        
+        if (deviceTokens.length === 0) {
+          return res.status(200).json({ ok: true, message: 'No device tokens found' });
+        }
+        
+        if (firebaseApp) {
+          try {
+            const message = {
+              notification: {
+                title: payload.title,
+                body: payload.body,
+              },
+              data: payload.data || {},
+              tokens: deviceTokens,
+            };
+            
+            const response = await admin.messaging().sendMulticast(message);
+            console.log('Successfully sent notification to all users:', response);
+            return res.status(200).json({ 
+              ok: true, 
+              successCount: response.successCount,
+              failureCount: response.failureCount 
+            });
+          } catch (error) {
+            console.error('Error sending notification to all users:', error);
+            return res.status(500).json({ error: 'failed_to_send_notification' });
+          }
+        } else {
+          // Log notification for development
+          console.log('Notification to all users would be sent:', { payload, deviceTokens });
+          return res.status(200).json({ ok: true, message: 'Notification logged (Firebase not configured)' });
+        }
+      }
+
+      // Notifications
+      case 'getNotifications': {
+        if (!me) return res.status(401).json({ error: 'unauthorized' });
+        const { limit = 50, offset = 0 } = args || {};
+        const rows = await sql`SELECT n.id, n.user_id, n.type, n.post_id, n.from_user_id, n.from_username, n.created_at, n.read, u.username as from_username, p.content, p.image_url FROM notifications n JOIN users u ON n.from_user_id = u.id LEFT JOIN posts p ON n.post_id = p.id WHERE n.user_id = ${me.userId} ORDER BY n.created_at DESC LIMIT ${limit} OFFSET ${offset}`;
         return res.status(200).json(rows);
+      }
+      case 'markNotificationsRead': {
+        if (!me) return res.status(401).json({ error: 'unauthorized' });
+        const { notificationIds } = args;
+        if (!Array.isArray(notificationIds)) return res.status(400).json({ error: 'invalid_notification_ids' });
+        await sql`UPDATE notifications SET read = TRUE WHERE id = ANY(${notificationIds}) AND user_id = ${me.userId}`;
+        return res.status(200).json({ ok: true });
+      }
+      case 'deleteNotification': {
+        if (!me) return res.status(401).json({ error: 'unauthorized' });
+        const { notificationId } = args;
+        const rows = await sql`DELETE FROM notifications WHERE id = ${notificationId} AND user_id = ${me.userId} RETURNING id`;
+        return res.status(200).json({ ok: rows.length > 0 });
       }
 
       default:

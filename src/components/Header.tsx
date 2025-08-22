@@ -8,6 +8,7 @@ import { Notifications } from './Notifications';
 import { AdminPanel } from './AdminPanel';
 import { ModeratorPanel } from './ModeratorPanel';
 import { Mentions } from './Mentions';
+import { NotificationCenter } from './NotificationCenter';
 import { getPendingMentions } from '../lib/database';
 import { t } from '../lib/translations';
 import { useLanguage } from '../hooks/useLanguage';
@@ -85,19 +86,21 @@ export function Header() {
             {/* Mobile actions */}
             <div className="flex md:hidden items-center gap-3">
               {!mentionsDisabled && (
-                <button onClick={handleOpenMentions} className="relative text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors" title={t('mentions', language)}>
-                  <AtSign size={16} />
-                  {pendingMentionsCount > 0 && (
-                    <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-mono font-bold shadow-sm">
-                      {pendingMentionsCount > 9 ? '9+' : pendingMentionsCount}
-                    </span>
-                  )}
-                </button>
+              <button onClick={handleOpenMentions} className="relative text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors" title={t('mentions', language)}>
+                <AtSign size={16} />
+                {pendingMentionsCount > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-mono font-bold shadow-sm">
+                    {pendingMentionsCount > 9 ? '9+' : pendingMentionsCount}
+                  </span>
+                )}
+              </button>
               )}
               <button onClick={toggleTheme} className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"><span className="sr-only">theme</span>{theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}</button>
               <button onClick={() => setView('settings')} className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors" title={t('settings', language)}>
                 <Settings size={16} />
               </button>
+              <Notifications />
+              <NotificationCenter />
             </div>
             
             <div className="hidden md:flex items-center gap-4">
@@ -114,15 +117,16 @@ export function Header() {
                 <button onClick={() => setShowModeratorPanel(true)} className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-mono text-sm transition-colors" title={language === 'tr' ? 'Moderatör Paneli' : 'Moderator Panel'}><Shield size={16} />{language === 'tr' ? 'moderatör' : 'moderator'}</button>
               )}
               <Notifications />
+              <NotificationCenter />
               {!mentionsDisabled && (
-                <button onClick={handleOpenMentions} className="relative flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-mono text-sm transition-colors" title={t('mentions', language)}>
-                  <AtSign size={16} />
-                  {pendingMentionsCount > 0 && (
-                    <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-mono font-bold shadow-sm">
-                      {pendingMentionsCount > 9 ? '9+' : pendingMentionsCount}
-                    </span>
-                  )}
-                </button>
+              <button onClick={handleOpenMentions} className="relative flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-mono text-sm transition-colors" title={t('mentions', language)}>
+                <AtSign size={16} />
+                {pendingMentionsCount > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-mono font-bold shadow-sm">
+                    {pendingMentionsCount > 9 ? '9+' : pendingMentionsCount}
+                  </span>
+                )}
+              </button>
               )}
               <button onClick={toggleTheme} className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors" title={theme === 'dark' ? t('switchToLightMode', language) : t('switchToDarkMode', language)}>{theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}</button>
               <button onClick={() => setView('settings')} className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors" title={t('settings', language)}><Settings size={16} /></button>

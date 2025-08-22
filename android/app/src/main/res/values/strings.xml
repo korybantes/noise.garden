@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">noise.garden</string>
+    <string name="title_activity_main">noise.garden</string>
+    <string name="package_name">noise.garden.app</string>
+    <string name="custom_url_scheme">noise.garden.app</string>
+</resources>
