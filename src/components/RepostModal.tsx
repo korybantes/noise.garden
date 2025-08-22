@@ -33,8 +33,8 @@ export function RepostModal({ postId, onClose, onReposted }: RepostModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow">
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-20 pb-20 overflow-y-auto">
+      <div className="w-full max-w-md bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow-lg my-auto">
         <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-800">
           <div className="flex items-center gap-2 text-gray-700 dark:text-gray-200 font-mono text-sm">
             <Repeat2 size={16} /> repost
