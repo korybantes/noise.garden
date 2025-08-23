@@ -10,11 +10,13 @@ import { Profile } from './components/Profile';
 import { ChatWindow } from './components/ChatWindow';
 import { InvitePage } from './components/InvitePage';
 import { NotificationsPage } from './components/NotificationsPage';
+import { NewsPage } from './components/NewsPage';
 import { Footer } from './components/Footer';
 import { RouterProvider, useRouter } from './hooks/useRouter';
 import { OnboardingBackupCodes } from './components/OnboardingBackupCodes';
 import { UserSettings } from './components/UserSettings';
 import { usePushNotifications } from './hooks/usePushNotifications';
+import { NotificationToast } from './components/NotificationToast';
 
 function AppContent() {
   const { user, isLoading } = useAuth();
@@ -41,9 +43,8 @@ function AppContent() {
       setView('invite');
     } else if (route.name === 'notifications') {
       setView('notifications');
-    } else if (route.name === 'post') {
-      // For post routes, stay on feed view but let Feed handle the post
-      setView('feed');
+    } else if (route.name === 'news') {
+      setView('news');
     }
   }, [route.name, setView]);
 
@@ -107,6 +108,7 @@ function AppContent() {
          view === 'chat' ? <ChatWindow onClose={() => {}} /> :
          view === 'invite' ? <InvitePage /> :
          view === 'notifications' ? <NotificationsPage /> :
+         view === 'news' ? <NewsPage /> :
          view === 'settings' ? <UserSettings /> : <Feed />}
         </div>
         
@@ -115,6 +117,7 @@ function AppContent() {
       </div>
       <Footer />
       <BottomNav />
+      <NotificationToast onClose={() => {}} />
       {onboardingCodes && (
         <OnboardingBackupCodes
           codes={onboardingCodes}

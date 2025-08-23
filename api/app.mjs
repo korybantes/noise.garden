@@ -107,6 +107,8 @@ export default async function handler(req, res) {
         await sql`CREATE TABLE IF NOT EXISTS user_mutes (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id UUID REFERENCES users(id) ON DELETE CASCADE, muted_by UUID REFERENCES users(id) ON DELETE SET NULL, reason TEXT NOT NULL, expires_at TIMESTAMPTZ NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW(), UNIQUE(user_id))`;
         await sql`CREATE TABLE IF NOT EXISTS reply_keys (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), key_hash TEXT NOT NULL, post_id UUID REFERENCES posts(id) ON DELETE CASCADE, creator_id UUID REFERENCES users(id) ON DELETE CASCADE, recipient_id UUID REFERENCES users(id) ON DELETE CASCADE, expires_at TIMESTAMPTZ NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`;
         await sql`CREATE TABLE IF NOT EXISTS device_tokens (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id UUID REFERENCES users(id) ON DELETE CASCADE, token TEXT UNIQUE NOT NULL, platform TEXT NOT NULL DEFAULT 'android', created_at TIMESTAMPTZ DEFAULT NOW(), last_used TIMESTAMPTZ DEFAULT NOW())`;
+        await sql`CREATE TABLE IF NOT EXISTS news_posts (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), title TEXT NOT NULL, content TEXT NOT NULL, author_id UUID REFERENCES users(id) ON DELETE CASCADE, created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW(), is_published BOOLEAN DEFAULT TRUE, slug TEXT UNIQUE NOT NULL)`;
+        await sql`CREATE TABLE IF NOT EXISTS feedback_tickets (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id UUID REFERENCES users(id) ON DELETE CASCADE, type TEXT NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL, priority TEXT NOT NULL DEFAULT 'medium', status TEXT NOT NULL DEFAULT 'open', created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW())`;
         return res.status(200).json({ ok: true });
       }
 
@@ -659,6 +661,234 @@ export default async function handler(req, res) {
         const { notificationId } = args;
         const rows = await sql`DELETE FROM notifications WHERE id = ${notificationId} AND user_id = ${me.userId} RETURNING id`;
         return res.status(200).json({ ok: rows.length > 0 });
+      }
+
+      // News/Blog
+      case 'createNewsPost': {
+        if (!me) return res.status(401).json({ error: 'unauthorized' });
+        
+        // Check if user is admin or moderator
+        const user = await sql`SELECT role FROM users WHERE id = ${me.userId}`;
+        if (!user[0] || !['admin', 'moderator'].includes(user[0].role)) {
+          return res.status(403).json({ error: 'unauthorized' });
+        }
+        
+        const { title, content, isPublished = true } = args;
+        
+        // Generate slug from title
+        const slug = title
+          .toLowerCase()
+          .replace(/[^a-z0-9\s-]/g, '')
+          .replace(/\s+/g, '-')
+          .replace(/-+/g, '-')
+          .trim();
+        
+        const rows = await sql`
+          INSERT INTO news_posts (title, content, author_id, is_published, slug)
+          VALUES (${title}, ${content}, ${me.userId}, ${isPublished}, ${slug})
+          RETURNING id, title, content, created_at, updated_at, author_id, is_published, slug
+        `;
+        
+        const post = rows[0];
+        const authorInfo = await sql`SELECT username, role FROM users WHERE id = ${me.userId}`;
+        
+        return res.status(200).json({
+          id: post.id,
+          title: post.title,
+          content: post.content,
+          created_at: post.created_at,
+          updated_at: post.updated_at,
+          author_id: post.author_id,
+          is_published: post.is_published,
+          slug: post.slug,
+          author_username: authorInfo[0].username,
+          author_role: authorInfo[0].role
+        });
+      }
+      
+      case 'getNewsPosts': {
+        const { limit = 10, offset = 0, publishedOnly = true } = args || {};
+        const whereClause = publishedOnly ? sql`WHERE is_published = true` : sql``;
+        
+        const rows = await sql`
+          SELECT np.id, np.title, np.content, np.created_at, np.updated_at, np.author_id, np.is_published, np.slug,
+                 u.username as author_username, u.role as author_role
+          FROM news_posts np
+          JOIN users u ON np.author_id = u.id
+          ${whereClause}
+          ORDER BY np.created_at DESC
+          LIMIT ${limit} OFFSET ${offset}
+        `;
+        
+        return res.status(200).json({ posts: rows });
+      }
+      
+      case 'getNewsPostBySlug': {
+        const { slug } = args;
+        const rows = await sql`
+          SELECT np.id, np.title, np.content, np.created_at, np.updated_at, np.author_id, np.is_published, np.slug,
+                 u.username as author_username, u.role as author_role
+          FROM news_posts np
+          JOIN users u ON np.author_id = u.id
+          WHERE np.slug = ${slug} AND np.is_published = true
+          LIMIT 1
+        `;
+        
+        return res.status(200).json(rows[0] || null);
+      }
+      
+      case 'updateNewsPost': {
+        if (!me) return res.status(401).json({ error: 'unauthorized' });
+        
+        // Check if user is admin or moderator
+        const user = await sql`SELECT role FROM users WHERE id = ${me.userId}`;
+        if (!user[0] || !['admin', 'moderator'].includes(user[0].role)) {
+          return res.status(403).json({ error: 'unauthorized' });
+        }
+        
+        const { postId, title, content, isPublished } = args;
+        
+        // Generate new slug if title changed
+        let slug;
+        if (title) {
+          slug = title
+            .toLowerCase()
+            .replace(/[^a-z0-9\s-]/g, '')
+            .replace(/\s+/g, '-')
+            .replace(/-+/g, '-')
+            .trim();
+        }
+        
+        const rows = await sql`
+          UPDATE news_posts 
+          SET 
+            title = COALESCE(${title || null}, title),
+            content = COALESCE(${content || null}, content),
+            is_published = COALESCE(${isPublished || null}, is_published),
+            slug = COALESCE(${slug || null}, slug),
+            updated_at = NOW()
+          WHERE id = ${postId}
+          RETURNING id, title, content, created_at, updated_at, author_id, is_published, slug
+        `;
+        
+        const post = rows[0];
+        const authorInfo = await sql`SELECT username, role FROM users WHERE id = ${post.author_id}`;
+        
+        return res.status(200).json({
+          id: post.id,
+          title: post.title,
+          content: post.content,
+          created_at: post.created_at,
+          updated_at: post.updated_at,
+          author_id: post.author_id,
+          is_published: post.is_published,
+          slug: post.slug,
+          author_username: authorInfo[0].username,
+          author_role: authorInfo[0].role
+        });
+      }
+      
+      case 'deleteNewsPost': {
+        if (!me) return res.status(401).json({ error: 'unauthorized' });
+        
+        // Check if user is admin or moderator
+        const user = await sql`SELECT role FROM users WHERE id = ${me.userId}`;
+        if (!user[0] || !['admin', 'moderator'].includes(user[0].role)) {
+          return res.status(403).json({ error: 'unauthorized' });
+        }
+        
+        const { postId } = args;
+        const rows = await sql`DELETE FROM news_posts WHERE id = ${postId} RETURNING id`;
+        return res.status(200).json({ ok: rows.length > 0 });
+      }
+
+      // Feedback
+      case 'createFeedbackTicket': {
+        if (!me) return res.status(401).json({ error: 'unauthorized' });
+        
+        const { type, title, description, priority } = args;
+        
+        // Validate input
+        if (!title || !description || !type || !priority) {
+          return res.status(400).json({ error: 'missing_required_fields' });
+        }
+        
+        const rows = await sql`
+          INSERT INTO feedback_tickets (user_id, type, title, description, priority, status)
+          VALUES (${me.userId}, ${type}, ${title}, ${description}, ${priority}, 'open')
+          RETURNING id, created_at
+        `;
+        
+        return res.status(200).json({ 
+          ok: true, 
+          ticketId: rows[0].id,
+          createdAt: rows[0].created_at
+        });
+      }
+
+      // Admin/Moderator endpoints
+      case 'getFlaggedPosts': {
+        if (!me) return res.status(401).json({ error: 'unauthorized' });
+        
+        // Check if user is admin or moderator
+        const user = await sql`SELECT role FROM users WHERE id = ${me.userId}`;
+        if (!user[0] || !['admin', 'moderator'].includes(user[0].role)) {
+          return res.status(403).json({ error: 'unauthorized' });
+        }
+        
+        const rows = await sql`
+          SELECT p.id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of, p.image_url, p.is_whisper,
+                 u.username, u.role,
+                 COUNT(r.id) as reply_count,
+                 COUNT(rp.id) as repost_count,
+                 COUNT(f.id) as flag_count,
+                 EXISTS(SELECT 1 FROM posts WHERE repost_of = p.id) as is_quarantined
+          FROM posts p
+          JOIN users u ON p.user_id = u.id
+          LEFT JOIN posts r ON p.id = r.parent_id
+          LEFT JOIN posts rp ON p.id = rp.repost_of
+          LEFT JOIN flags f ON p.id = f.post_id
+          WHERE EXISTS(SELECT 1 FROM flags WHERE post_id = p.id)
+          GROUP BY p.id, u.username, u.role
+          ORDER BY p.created_at DESC
+        `;
+        
+        return res.status(200).json({ flaggedPosts: rows });
+      }
+
+      case 'getInvitesCreatedBy': {
+        if (!me) return res.status(401).json({ error: 'unauthorized' });
+        
+        const { userId } = args;
+        const rows = await sql`
+          SELECT i.code, i.created_at, i.used_by, i.used_at, u.username as used_by_username
+          FROM invites i
+          LEFT JOIN users u ON i.used_by = u.id
+          WHERE i.created_by = ${userId}
+          ORDER BY i.created_at DESC
+        `;
+        
+        return res.status(200).json({ invites: rows });
+      }
+
+      case 'getFeedbackTickets': {
+        if (!me) return res.status(401).json({ error: 'unauthorized' });
+        
+        // Check if user is admin or moderator
+        const user = await sql`SELECT role FROM users WHERE id = ${me.userId}`;
+        if (!user[0] || !['admin', 'moderator'].includes(user[0].role)) {
+          return res.status(403).json({ error: 'unauthorized' });
+        }
+        
+        const rows = await sql`
+          SELECT ft.id, ft.type, ft.title, ft.description, ft.priority, ft.status, ft.created_at,
+                 u.username, u.role as user_role
+          FROM feedback_tickets ft
+          JOIN users u ON ft.user_id = u.id
+          ORDER BY ft.created_at DESC
+        `;
+        
+        return res.status(200).json({ tickets: rows });
       }
 
       default:

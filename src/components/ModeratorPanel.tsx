@@ -3,6 +3,7 @@ import { X, Flag, Eye, EyeOff, Unlock, RefreshCw, ShieldAlert, MicOff, Mic, Key,
 import { useAuth } from '../hooks/useAuth';
 import { getBannedUsers, banUser, unbanUser, muteUser, unmuteUser, getMutedUsers, createAdminInvite } from '../lib/database';
 import { useLanguage } from '../hooks/useLanguage';
+import { ChangelogEditor } from './ChangelogEditor';
 
 interface ModeratorPanelProps {
   onClose: () => void;
@@ -58,7 +59,7 @@ export function ModeratorPanel({ onClose }: ModeratorPanelProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-  const [activeTab, setActiveTab] = useState<'reports' | 'banned' | 'muted' | 'invites'>('reports');
+  const [activeTab, setActiveTab] = useState<'reports' | 'banned' | 'muted' | 'invites' | 'news'>('reports');
   const [showBanModal, setShowBanModal] = useState<{ show: boolean; userId: string; username: string }>({ show: false, userId: '', username: '' });
   const [banReason, setBanReason] = useState('');
   const [banning, setBanning] = useState(false);
@@ -480,6 +481,20 @@ export function ModeratorPanel({ onClose }: ModeratorPanelProps) {
                 )}
               </div>
             </button>
+            <button
+              onClick={() => setActiveTab('news')}
+              className={`px-2 sm:px-4 py-2 font-mono text-xs sm:text-sm transition-colors ${
+                activeTab === 'news'
+                  ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
+              }`}
+            >
+              <div className="flex items-center gap-1 sm:gap-2">
+                <span className="text-lg">📰</span>
+                <span className="hidden sm:inline">{language === 'tr' ? 'Haberler' : 'News'}</span>
+                <span className="sm:hidden">{language === 'tr' ? 'Haberler' : 'News'}</span>
+              </div>
+            </button>
           </div>
 
           <div className="p-2 sm:p-4 overflow-y-auto max-h-[calc(90vh-140px)]">
@@ -727,6 +742,11 @@ export function ModeratorPanel({ onClose }: ModeratorPanelProps) {
               <div className="text-center py-8 text-gray-500 dark:text-gray-400 font-mono text-sm">
                 {language === 'tr' ? 'Susturulmuş kullanıcı bulunamadı' : 'No muted users found'}
               </div>
+            )}
+
+            {/* News Section */}
+            {activeTab === 'news' && (
+              <ChangelogEditor />
             )}
 
             {/* Invites Section */}

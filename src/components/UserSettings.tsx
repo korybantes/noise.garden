@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, AlertTriangle, Key, Trash2, SlidersHorizontal, Globe, Shield, User, AtSign, Eye, EyeOff, ArrowLeft, LogOut } from 'lucide-react';
+import { X, AlertTriangle, Key, Trash2, SlidersHorizontal, Globe, Shield, User, AtSign, Eye, EyeOff, ArrowLeft, LogOut, Bell } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { updateUserProfile, deleteUser, updatePassword, getUserByUsername } from '../lib/database';
 import { hashPassword, verifyPassword } from '../lib/auth';
@@ -9,6 +9,7 @@ import { t } from '../lib/translations';
 import { useLanguage } from '../hooks/useLanguage';
 import { useNavigation } from '../hooks/useNavigation';
 import { FeedbackTab } from './FeedbackTab';
+import { ChangelogViewer } from './ChangelogViewer';
 
 interface UserSettingsProps {
   onClose?: () => void;
@@ -25,7 +26,7 @@ export function UserSettings({ onClose }: UserSettingsProps) {
   const [loading, setLoading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState('');
   const [bio, setBio] = useState('');
-  const [activeTab, setActiveTab] = useState<'profile' | 'feed' | 'language' | 'mobile' | 'privacy' | 'security' | 'support'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'feed' | 'language' | 'mobile' | 'privacy' | 'security' | 'support' | 'changelog'>('profile');
   const [settings, setSettings] = useState<FS>(() => loadFeedSettings());
   const [mutedInput, setMutedInput] = useState('');
   const [language, setLanguage] = useState<'en' | 'tr'>(settings.language);
@@ -211,6 +212,15 @@ export function UserSettings({ onClose }: UserSettingsProps) {
     }
   };
 
+  const getTabClasses = (tabName: string) => {
+    const isActive = activeTab === tabName;
+    return `px-3 py-1.5 rounded font-mono text-xs whitespace-nowrap flex-shrink-0 ${
+      isActive 
+        ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' 
+        : 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'
+    }`;
+  };
+
   return (
     <div className="w-full max-w-4xl mx-auto px-4 py-6 pb-24 md:pb-8">
       <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden max-h-[calc(100vh-80px)] flex flex-col">
@@ -234,11 +244,12 @@ export function UserSettings({ onClose }: UserSettingsProps) {
             <div className="flex items-center gap-2 mt-4 overflow-x-auto pb-2 scrollbar-hide touch-pan-x tab-scroll-container">
               <button onClick={() => setActiveTab('profile')} className={`px-3 py-1.5 rounded font-mono text-xs whitespace-nowrap flex-shrink-0 ${activeTab==='profile' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}>Profile</button>
               <button onClick={() => setActiveTab('feed')} className={`px-3 py-1.5 rounded font-mono text-xs whitespace-nowrap flex-shrink-0 ${activeTab==='feed' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}>Feed</button>
-              <button onClick={() => setActiveTab('language')} className={`px-3 py-1.5 rounded font-mono text-xs whitespace-nowrap flex-shrink-0 ${activeTab==='language' ? 'bg-gray-900 text-white dark:text-gray-100 dark:text-gray-900' : 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}>Language</button>
+              <button onClick={() => setActiveTab('language')} className={`px-3 py-1.5 rounded font-mono text-xs whitespace-nowrap flex-shrink-0 ${activeTab==='language' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}>Language</button>
               <button onClick={() => setActiveTab('mobile')} className={`px-3 py-1.5 rounded font-mono text-xs whitespace-nowrap flex-shrink-0 ${activeTab==='mobile' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}>Mobile</button>
               <button onClick={() => setActiveTab('privacy')} className={`px-3 py-1.5 rounded font-mono text-xs whitespace-nowrap flex-shrink-0 ${activeTab==='privacy' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}>Privacy</button>
               <button onClick={() => setActiveTab('security')} className={`px-3 py-1.5 rounded font-mono text-xs whitespace-nowrap flex-shrink-0 ${activeTab==='security' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}>Security</button>
               <button onClick={() => setActiveTab('support')} className={`px-3 py-1.5 rounded font-mono text-xs whitespace-nowrap flex-shrink-0 ${activeTab==='support' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}>Support</button>
+              <button onClick={() => setActiveTab('changelog')} className={`px-3 py-1.5 rounded font-mono text-xs whitespace-nowrap flex-shrink-0 ${activeTab==='changelog' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}>Changelog</button>
             </div>
             {/* Scroll indicator for mobile */}
             {isMobile && (
@@ -570,6 +581,17 @@ export function UserSettings({ onClose }: UserSettingsProps) {
                     Hide online status from other users
                   </div>
                 </label>
+                <label className="flex items-center gap-2 text-sm font-mono text-gray-700 dark:text-gray-300">
+                  <input 
+                    type="checkbox" 
+                    checked={!!(settings as any).privacy?.muteNotificationPopups} 
+                    onChange={(e) => setSettings(s => ({ ...(s as any), privacy: { ...((s as any).privacy||{}), muteNotificationPopups: e.target.checked } }) as FS)} 
+                  />
+                  <div className="flex items-center gap-2">
+                    <Bell size={16} />
+                    Mute notification popup toasts
+                  </div>
+                </label>
               </div>
               <p className="mt-2 text-xs font-mono text-gray-500 dark:text-gray-400">These preferences are applied by the app on this device.</p>
             </div>
@@ -611,6 +633,10 @@ export function UserSettings({ onClose }: UserSettingsProps) {
 
           {activeTab === 'support' && (
             <FeedbackTab />
+          )}
+
+          {activeTab === 'changelog' && (
+            <ChangelogViewer />
           )}
 
           {/* Invite & account actions */}

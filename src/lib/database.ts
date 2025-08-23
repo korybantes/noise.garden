@@ -58,12 +58,15 @@ export interface Invite {
 export interface Notification {
 	id: string;
 	user_id: string;
-	type: 'repost' | 'reply' | 'mention';
+	type: 'repost' | 'reply' | 'mention' | 'quarantine';
 	post_id: string;
 	from_user_id: string;
 	from_username: string;
 	created_at: Date;
 	read: boolean;
+	post_content?: string;
+	post_created_at?: Date;
+	post_avatar_url?: string;
 }
 
 export interface Flag {
@@ -439,7 +442,7 @@ export async function createPost(
 		`;
 	}
 	
-	// Create notification for reply
+			// Create notification for reply
 	if (parentId) {
 		const parent = await sql`SELECT user_id FROM posts WHERE id = ${parentId}`;
 		if (parent[0] && parent[0].user_id !== userId) {
@@ -448,6 +451,10 @@ export async function createPost(
 				VALUES (${parent[0].user_id}, 'reply', ${post.id}, ${userId}, ${user[0].username})
 			`;
 			notifyNotificationCountChanged();
+			// Trigger real-time notification event
+			if (typeof window !== 'undefined') {
+				window.dispatchEvent(new CustomEvent('newNotification'));
+			}
 		}
 	}
 	
@@ -460,6 +467,10 @@ export async function createPost(
 				VALUES (${originalPost[0].user_id}, 'repost', ${post.id}, ${userId}, ${user[0].username})
 			`;
 			notifyNotificationCountChanged();
+			// Trigger real-time notification event
+			if (typeof window !== 'undefined') {
+				window.dispatchEvent(new CustomEvent('newNotification'));
+			}
 		}
 	}
 	
@@ -533,11 +544,16 @@ export async function voteInPoll(postId: string, optionIndex: number, userId: st
 	return getPollForViewer(postId, userId) as unknown as Poll;
 }
 
-export async function getRandomPosts(limit: number = 20, offset: number = 0, sortBy: 'newest' | 'oldest' = 'newest'): Promise<Post[]> {
+export async function getRandomPosts(limit: number = 20, offset: number = 0, sortBy: 'newest' | 'oldest' | 'random' = 'newest'): Promise<Post[]> {
 	// Clean up expired posts first
 	await sql`DELETE FROM posts WHERE expires_at < NOW()`;
 	
-	const orderBy = sortBy === 'newest' ? sql`p.created_at DESC` : sql`p.created_at ASC`;
+	let orderBy;
+	if (sortBy === 'random') {
+		orderBy = sql`RANDOM()`;
+	} else {
+		orderBy = sortBy === 'newest' ? sql`p.created_at DESC` : sql`p.created_at ASC`;
+	}
 	
 	const result = await sql`
 		SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of, p.image_url,
@@ -773,13 +789,59 @@ export async function getBannedUsers(requesterId: string): Promise<Array<{
 // Notifications
 export async function getNotifications(userId: string, limit: number = 20): Promise<Notification[]> {
 	const result = await sql`
-		SELECT id, to_user_id as user_id, type, post_id, from_user_id, from_username, created_at, read
-		FROM notifications
-		WHERE to_user_id = ${userId}
-		ORDER BY created_at DESC
+		SELECT 
+			n.id, 
+			n.to_user_id as user_id, 
+			n.type, 
+			n.post_id, 
+			n.from_user_id, 
+			n.from_username, 
+			n.created_at, 
+			n.read,
+			p.content as post_content,
+			p.created_at as post_created_at,
+			u.avatar_url as post_avatar_url,
+			u.username as post_username,
+			-- Get original post info for context (only for replies)
+			CASE 
+				WHEN n.type = 'reply' AND p.parent_id IS NOT NULL THEN op.content
+				ELSE NULL
+			END as original_post_content,
+			CASE 
+				WHEN n.type = 'reply' AND p.parent_id IS NOT NULL THEN op.created_at
+				ELSE NULL
+			END as original_post_created_at,
+			CASE 
+				WHEN n.type = 'reply' AND p.parent_id IS NOT NULL THEN ou.username
+				ELSE NULL
+			END as original_post_username
+		FROM notifications n
+		LEFT JOIN posts p ON n.post_id = p.id
+		LEFT JOIN users u ON p.user_id = u.id
+		-- Join to get the original post that was replied to
+		LEFT JOIN posts op ON p.parent_id = op.id
+		LEFT JOIN users ou ON op.user_id = ou.id
+		WHERE n.to_user_id = ${userId}
+		ORDER BY n.created_at DESC
 		LIMIT ${limit}
 	`;
-	return result as Notification[];
+	return result.map(row => ({
+		id: row.id,
+		user_id: row.user_id,
+		type: row.type,
+		post_id: row.post_id,
+		from_user_id: row.from_user_id,
+		from_username: row.from_username,
+		created_at: new Date(row.created_at),
+		read: row.read,
+		post_content: row.post_content,
+		post_created_at: row.post_created_at ? new Date(row.post_created_at) : undefined,
+		post_avatar_url: row.post_avatar_url,
+		post_username: row.post_username,
+		original_post_content: row.original_post_content,
+		original_post_created_at: row.original_post_created_at ? new Date(row.original_post_created_at) : undefined,
+		original_post_username: row.original_post_username
+	}));
 }
 
 export async function markNotificationRead(notificationId: string): Promise<void> {
@@ -924,16 +986,20 @@ export async function getFlaggedPosts(): Promise<Post[]> {
 export async function quarantinePost(postId: string, adminId: string): Promise<void> {
 	await sql`UPDATE posts SET is_quarantined = TRUE WHERE id = ${postId}`;
 	
-	// Notify the original poster
-	const post = await sql`SELECT user_id FROM posts WHERE id = ${postId}`;
-	if (post.length > 0) {
-		const admin = await sql`SELECT username FROM users WHERE id = ${adminId}`;
-		await sql`
-			INSERT INTO notifications (to_user_id, type, post_id, from_user_id, from_username)
-			VALUES (${post[0].user_id}, 'quarantine', ${postId}, ${adminId}, ${admin[0].username})
-		`;
-		notifyNotificationCountChanged();
-	}
+			// Notify the original poster
+		const post = await sql`SELECT user_id FROM posts WHERE id = ${postId}`;
+		if (post.length > 0) {
+			const admin = await sql`SELECT username FROM users WHERE id = ${adminId}`;
+			await sql`
+				INSERT INTO notifications (to_user_id, type, post_id, from_user_id, from_username)
+				VALUES (${post[0].user_id}, 'quarantine', ${postId}, ${adminId}, ${admin[0].username})
+			`;
+			notifyNotificationCountChanged();
+			// Trigger real-time notification event
+			if (typeof window !== 'undefined') {
+				window.dispatchEvent(new CustomEvent('newNotification'));
+			}
+		}
 }
 
 export async function unquarantinePost(postId: string, _adminId: string): Promise<void> {
@@ -1310,4 +1376,111 @@ export async function getAllDeviceTokens(): Promise<Array<{ userId: string; toke
 		ORDER BY last_used DESC
 	`;
 	return result as any;
+}
+
+// News/Blog functions
+export interface NewsPost {
+	id: string;
+	title: string;
+	content: string;
+	created_at: Date;
+	updated_at: Date;
+	author_id: string;
+	author_username: string;
+	author_role: string;
+	is_published: boolean;
+	slug: string;
+}
+
+export async function createNewsPost(
+	title: string, 
+	content: string, 
+	isPublished: boolean = true
+): Promise<NewsPost> {
+	const response = await fetch('/api/app.mjs', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({
+			action: 'createNewsPost',
+			args: { title, content, isPublished }
+		})
+	});
+	
+	if (!response.ok) {
+		throw new Error('Failed to create news post');
+	}
+	
+	return response.json();
+}
+
+export async function getNewsPosts(limit: number = 10, offset: number = 0, publishedOnly: boolean = true): Promise<NewsPost[]> {
+	const response = await fetch('/api/app.mjs', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({
+			action: 'getNewsPosts',
+			args: { limit, offset, publishedOnly }
+		})
+	});
+	
+	if (!response.ok) {
+		throw new Error('Failed to get news posts');
+	}
+	
+	return response.json();
+}
+
+export async function getNewsPostBySlug(slug: string): Promise<NewsPost | null> {
+	const response = await fetch('/api/app.mjs', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({
+			action: 'getNewsPostBySlug',
+			args: { slug }
+		})
+	});
+	
+	if (!response.ok) {
+		throw new Error('Failed to get news post');
+	}
+	
+	return response.json();
+}
+
+export async function updateNewsPost(
+	postId: string, 
+	updates: { title?: string; content?: string; isPublished?: boolean }
+): Promise<NewsPost> {
+	const response = await fetch('/api/app.mjs', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({
+			action: 'updateNewsPost',
+			args: { postId, title: updates.title, content: updates.content, isPublished: updates.isPublished }
+		})
+	});
+	
+	if (!response.ok) {
+		throw new Error('Failed to update news post');
+	}
+	
+	return response.json();
+}
+
+export async function deleteNewsPost(postId: string): Promise<boolean> {
+	const response = await fetch('/api/app.mjs', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({
+			action: 'deleteNewsPost',
+			args: { postId }
+		})
+	});
+	
+	if (!response.ok) {
+		throw new Error('Failed to delete news post');
+	}
+	
+	const result = await response.json();
+	return result.ok;
 }

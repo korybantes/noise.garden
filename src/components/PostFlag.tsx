@@ -78,8 +78,8 @@ export function PostFlag({ postId, onClose, onFlagged }: PostFlagProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow-lg">
+    <div className="modal-overlay bg-black/50">
+      <div className="modal-content w-full max-w-md bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow-lg">
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800">
           <div className="flex items-center gap-2">
             <Flag className="w-5 h-5 text-red-600" />

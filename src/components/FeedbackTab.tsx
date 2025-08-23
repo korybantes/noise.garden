@@ -24,14 +24,13 @@ export function FeedbackTab() {
     setError('');
 
     try {
-      const response = await fetch('/api/feedback', {
+      const response = await fetch('/api/app.mjs', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
         },
         body: JSON.stringify({
-          action: 'createTicket',
+          action: 'createFeedbackTicket',
           args: {
             type: activeTab,
             title: title.trim(),

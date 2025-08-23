@@ -5,7 +5,7 @@ export interface NotificationPayload {
   title: string;
   body: string;
   data?: {
-    type: 'newMessage' | 'randomPost' | 'mention' | 'reply';
+    type: 'newMessage' | 'randomPost' | 'mention' | 'reply' | 'repost' | 'quarantine';
     [key: string]: any;
   };
 }
@@ -28,6 +28,13 @@ export class NotificationService {
 
       if (!response.ok) {
         throw new Error('Failed to send notification');
+      }
+
+      // Trigger real-time notification event
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('newNotification', { 
+          detail: { type: payload.data?.type || 'notification' } 
+        }));
       }
 
       return await response.json();
@@ -56,6 +63,13 @@ export class NotificationService {
         throw new Error('Failed to send notification');
       }
 
+      // Trigger real-time notification event
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('newNotification', { 
+          detail: { type: payload.data?.type || 'notification' } 
+        }));
+      }
+
       return await response.json();
     } catch (error) {
       console.error('Error sending notification:', error);
@@ -73,5 +87,19 @@ export class NotificationService {
         test: true
       }
     });
+  }
+
+  // Real-time notification helpers
+  static triggerRealTimeNotification(type: 'reply' | 'repost' | 'mention' | 'quarantine') {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('newNotification', { detail: { type } }));
+    }
+  }
+
+  // Update notification count in real-time
+  static updateNotificationCount() {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('notificationCountChanged'));
+    }
   }
 } 

@@ -19,6 +19,14 @@ export function RepostModal({ postId, onClose, onReposted }: RepostModalProps) {
     getPostById(postId).then(setOriginal).catch(console.error);
   }, [postId]);
 
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    document.body.classList.add('modal-open');
+    return () => {
+      document.body.classList.remove('modal-open');
+    };
+  }, []);
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -33,43 +41,53 @@ export function RepostModal({ postId, onClose, onReposted }: RepostModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-20 pb-20 overflow-y-auto">
-      <div className="w-full max-w-md bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow-lg my-auto">
-        <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-800">
-          <div className="flex items-center gap-2 text-gray-700 dark:text-gray-200 font-mono text-sm">
-            <Repeat2 size={16} /> repost
-          </div>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-            <X size={16} />
-          </button>
-        </div>
-
-        <div className="p-4 space-y-3">
+    <div className="modal-overlay bg-black/50">
+      <div className="modal-content bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-md w-full mx-4">
+        <div className="p-6">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+            Repost
+          </h2>
+          
           {original && (
-            <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded p-3">
-              <div className="text-xs font-mono text-gray-500 dark:text-gray-400 mb-2">original by @{original.username}</div>
-              <div className="text-sm font-mono text-gray-800 dark:text-gray-100 whitespace-pre-wrap">
+            <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <p className="text-sm text-gray-600 dark:text-gray-300">
                 {original.content}
-              </div>
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                — @{original.username}
+              </p>
             </div>
           )}
-
-          <form onSubmit={submit} className="space-y-3">
-            <textarea
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              placeholder="add your thoughts... (optional)"
-              className="w-full p-3 bg-transparent border border-gray-200 dark:border-gray-800 rounded resize-none focus:outline-none font-mono text-sm placeholder-gray-400 dark:placeholder-gray-500 text-gray-900 dark:text-gray-100"
-              rows={4}
-              maxLength={280}
-            />
-            <div className="flex justify-end">
+          
+          <form onSubmit={submit} className="space-y-4">
+            <div>
+              <label htmlFor="comment" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Add a comment (optional)
+              </label>
+              <textarea
+                id="comment"
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder="What's on your mind?"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-white"
+                rows={3}
+              />
+            </div>
+            
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
+              >
+                Cancel
+              </button>
               <button
                 type="submit"
                 disabled={submitting}
-                className="inline-flex items-center gap-2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 px-4 py-2 rounded-md font-mono text-sm hover:bg-gray-800 dark:hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:opacity-50"
+                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                <Repeat2 size={14} /> repost
+                {submitting ? 'Reposting...' : 'Repost'}
               </button>
             </div>
           </form>

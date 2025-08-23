@@ -154,8 +154,8 @@ export function AvatarGenerator({ onClose, onAvatarGenerated }: AvatarGeneratorP
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow-lg overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto">
+      <div className="w-full max-w-md bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow-lg my-4">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800">
           <h2 className="text-lg font-mono font-semibold text-gray-900 dark:text-gray-100">

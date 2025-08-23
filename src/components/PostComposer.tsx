@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
-import { Send, X, Smile, Clock, MoreHorizontal, Lock, ListPlus, MicOff, Reply } from 'lucide-react';
-import { createPost, createPollPost, createMention, Post as PostType } from '../lib/database';
+import { Send, X, Smile, Clock, MoreHorizontal, Lock, ListPlus, MicOff } from 'lucide-react';
+import { createPost, createPollPost, createMention } from '../lib/database';
 import { useAuth } from '../hooks/useAuth';
 import { containsLink, sanitizeLinks } from '../lib/validation';
 import { t } from '../lib/translations';
@@ -9,7 +9,7 @@ import { useMuteStatus } from '../hooks/useMuteStatus';
 
 interface PostComposerProps {
   onPostCreated: () => void;
-  replyTo?: PostType;
+  replyTo?: { id: string; username: string; content: string };
   onCancelReply?: () => void;
 	initialContent?: string;
 }
@@ -110,33 +110,6 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
         isPopupThread ? popupTimeLimit : undefined
       );
 
-      // Create notification for reply
-      if (replyTo && newPost) {
-        try {
-          await fetch('/api/notifications', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-            },
-            body: JSON.stringify({
-              action: 'createNotification',
-              args: {
-                toUserId: replyTo.user_id,
-                type: 'reply',
-                postId: newPost.id,
-                fromUsername: user.username
-              }
-            })
-          });
-          
-          // Notify header to refresh notification count for the recipient
-          window.dispatchEvent(new CustomEvent('notificationCountChanged'));
-        } catch (error) {
-          console.error('Failed to create notification:', error);
-        }
-      }
-
       // Check for mentions and create them
       const mentionRegex = /@([a-zA-Z0-9_-]+)/g;
       const mentions = content.match(mentionRegex);
@@ -217,19 +190,14 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
       )}
 
       {replyTo && (
-        <div className="mb-3 p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-xs font-mono text-gray-600 dark:text-gray-400 flex items-center gap-2">
-              <Reply size={12} />
-              {t('replyingTo', language)} @{replyTo.username}
-            </div>
+        <div className="mb-3 pb-3 border-b border-gray-100 dark:border-gray-800">
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-mono text-gray-500 dark:text-gray-400">{t('replyingTo', language)} @{replyTo.username}</div>
             <button onClick={onCancelReply} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
               <X size={16} />
             </button>
           </div>
-          <div className="text-sm text-gray-700 dark:text-gray-300 line-clamp-3 font-mono">
-            {replyTo.content}
-          </div>
+          <div className="mt-1 text-sm text-gray-700 dark:text-gray-300 line-clamp-2">{replyTo.content}</div>
         </div>
       )}
       

@@ -47,8 +47,8 @@ export function PostDetails({ id }: { id: string }) {
   };
 
   return (
-    <div className="fixed inset-0 z-40 bg-black/40">
-      <div className="absolute inset-y-0 right-0 w-full md:w-[640px] bg-white dark:bg-gray-950 border-l border-gray-200 dark:border-gray-800 shadow-xl overflow-y-auto">
+    <div className="modal-overlay bg-black/40">
+      <div className="modal-content w-full md:w-[640px] bg-white dark:bg-gray-950 border-l border-gray-200 dark:border-gray-800 shadow-xl overflow-y-auto">
         <div className="p-4 border-b border-gray-200 dark:border-gray-800">
           <button onClick={navigateToFeed} className="inline-flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-mono text-sm">
             <ArrowLeft size={16} /> back

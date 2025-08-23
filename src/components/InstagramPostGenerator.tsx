@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { X, Download, Share2, Palette, Type } from 'lucide-react';
 import html2canvas from 'html2canvas';
 
@@ -43,6 +43,22 @@ export function InstagramPostGenerator({ post, onClose }: InstagramPostGenerator
   const [isGenerating, setIsGenerating] = useState(false);
   const postRef = useRef<HTMLDivElement>(null);
 	const exportRef = useRef<HTMLDivElement>(null);
+
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    console.log('InstagramPostGenerator modal opened');
+    console.log('Viewport dimensions:', {
+      width: window.innerWidth,
+      height: window.innerHeight,
+      documentHeight: document.documentElement.clientHeight,
+      bodyHeight: document.body.clientHeight
+    });
+    document.body.classList.add('modal-open');
+    return () => {
+      console.log('InstagramPostGenerator modal closed');
+      document.body.classList.remove('modal-open');
+    };
+  }, []);
 
   const generateGradientCSS = (preset: GradientPreset) => {
     if (preset.colors.length === 2) {
@@ -175,8 +191,8 @@ export function InstagramPostGenerator({ post, onClose }: InstagramPostGenerator
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-2 sm:p-4 overflow-hidden">
-      <div className="w-full max-w-2xl bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-hidden max-h-[95vh] flex flex-col">
+    <div className="modal-overlay bg-black/90">
+      <div className="modal-content w-full max-w-2xl bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-3 sm:p-6 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
           <div className="flex items-center gap-2 sm:gap-3">
@@ -383,52 +399,61 @@ export function InstagramPostGenerator({ post, onClose }: InstagramPostGenerator
 				<div
 					ref={exportRef}
 					style={{
-						position: 'absolute',
-						top: -10000,
-						left: -10000,
-						width: 1080,
-						height: 1920,
+						position: 'fixed',
+						top: '-10000px',
+						left: '-10000px',
+						width: '1080px',
+						height: '1920px',
 						background: generateCustomGradient(),
-						overflow: 'hidden'
+						overflow: 'hidden',
+						zIndex: -1
 					}}
-					aria-hidden
+					aria-hidden="true"
 				>
-					<div className="relative w-full h-full">
-						<div className="absolute inset-0 p-12 flex flex-col justify-between">
-							<div className="flex items-center justify-between">
-								<div className="flex items-center gap-4">
+					<div style={{ position: 'relative', width: '100%', height: '100%' }}>
+						<div style={{ position: 'absolute', inset: '0', padding: '48px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+							<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+								<div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
 									{post.avatar_url ? (
 										<img
 											src={post.avatar_url}
 											alt={post.username}
-											className="w-16 h-16 rounded-full border-2 border-white/20"
+											style={{ width: '64px', height: '64px', borderRadius: '50%', border: '2px solid rgba(255,255,255,0.2)' }}
 										/>
 									) : (
-										<div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center">
-											<span className="text-white font-bold text-2xl">
+										<div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+											<span style={{ color: 'white', fontWeight: 'bold', fontSize: '24px' }}>
 												{post.username.charAt(0).toUpperCase()}
 											</span>
 										</div>
 									)}
-									<span className="text-white/90 font-semibold text-2xl" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>
+									<span style={{ color: 'rgba(255,255,255,0.9)', fontWeight: '600', fontSize: '24px', textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>
 										@{post.username}
 									</span>
 								</div>
-								<span className="text-white/70 text-base font-mono">
+								<span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '16px', fontFamily: 'monospace' }}>
 									{new Date(post.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
 								</span>
 							</div>
 
-							<div className="text-white leading-relaxed font-medium text-center flex-1 flex items-center justify-center px-10" style={{ 
-								fontSize: `${Math.round(fontSize * 2.5)}px`, 
-								color: '#ffffff', 
+							<div style={{ 
+								color: 'white', 
+								lineHeight: '1.6', 
+								fontWeight: '500', 
+								textAlign: 'center', 
+								flex: '1', 
+								display: 'flex', 
+								alignItems: 'center', 
+								justifyContent: 'center', 
+								padding: '0 40px',
+								fontSize: `${Math.round(fontSize * 2.5)}px`,
 								textShadow: '0 2px 4px rgba(0,0,0,0.3)' 
 							}}>
 								{post.content}
 							</div>
 
-							<div className="text-center">
-								<div className="text-white/80 text-base font-mono font-semibold" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>
+							<div style={{ textAlign: 'center' }}>
+								<div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '16px', fontFamily: 'monospace', fontWeight: '600', textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>
 									posted on noise.garden
 								</div>
 							</div>

@@ -71,6 +71,7 @@ export interface Translations {
   refresh: string;
   newest: string;
   oldest: string;
+  random: string;
   sortBy: string;
   postQuarantined: string;
   replyToThisPost: string;
@@ -167,6 +168,26 @@ export interface Translations {
   connected: string;
   disconnected: string;
   online: string;
+  
+  // News/Blog
+  news: string;
+  newsDescription: string;
+  changelog: string;
+  createNewsPost: string;
+  editNewsPost: string;
+  deleteNewsPostConfirm: string;
+  backToNews: string;
+  loadingNews: string;
+  noNewsPosts: string;
+  readMore: string;
+  draft: string;
+  title: string;
+  content: string;
+  markdownSupported: string;
+  newsTitlePlaceholder: string;
+  newsContentPlaceholder: string;
+  publishImmediately: string;
+  create: string;
   findNewPair: string;
   disconnect: string;
   typeAnonymously: string;
@@ -333,6 +354,7 @@ export const translations: Record<'en' | 'tr', Translations> = {
     refresh: 'refresh',
     newest: 'newest',
     oldest: 'oldest',
+    random: 'random',
     sortBy: 'sort by',
     postQuarantined: 'Post quarantined',
     replyToThisPost: 'Reply to this post',
@@ -429,6 +451,26 @@ export const translations: Record<'en' | 'tr', Translations> = {
     connected: 'connected',
     disconnected: 'disconnected',
     online: 'online',
+    
+    // News/Blog
+    news: 'news',
+    newsDescription: 'Community updates and announcements',
+  changelog: 'Changelog',
+    createNewsPost: 'Create News Post',
+    editNewsPost: 'Edit News Post',
+    deleteNewsPostConfirm: 'Are you sure you want to delete this news post?',
+    backToNews: 'Back to News',
+    loadingNews: 'loading news...',
+    noNewsPosts: 'no news posts yet',
+    readMore: 'read more',
+    draft: 'draft',
+    title: 'title',
+    content: 'content',
+    markdownSupported: 'Markdown supported',
+    newsTitlePlaceholder: 'News title...',
+    newsContentPlaceholder: 'News content... (Markdown supported)',
+    publishImmediately: 'Publish immediately',
+    create: 'create',
     findNewPair: 'find new pair',
     disconnect: 'disconnect',
     typeAnonymously: 'type anonymously...',
@@ -594,6 +636,7 @@ export const translations: Record<'en' | 'tr', Translations> = {
     refresh: 'yenile',
     newest: 'en yeni',
     oldest: 'en eski',
+    random: 'rastgele',
     sortBy: 'sırala',
     postQuarantined: 'Gönderi karantinaya alındı',
     replyToThisPost: 'Bu gönderiye yanıtla',
@@ -690,6 +733,26 @@ export const translations: Record<'en' | 'tr', Translations> = {
     connected: 'bağlandı',
     disconnected: 'bağlantı kesildi',
     online: 'çevrimiçi',
+    
+    // News/Blog
+    news: 'haberler',
+    newsDescription: 'Topluluk güncellemeleri ve duyurular',
+  changelog: 'Değişiklik Günlüğü',
+    createNewsPost: 'Haber Yazısı Oluştur',
+    editNewsPost: 'Haber Yazısını Düzenle',
+    deleteNewsPostConfirm: 'Bu haber yazısını silmek istediğinizden emin misiniz?',
+    backToNews: 'Haberlere Geri Dön',
+    loadingNews: 'haberler yükleniyor...',
+    noNewsPosts: 'henüz haber yazısı yok',
+    readMore: 'devamını oku',
+    draft: 'taslak',
+    title: 'başlık',
+    content: 'içerik',
+    markdownSupported: 'Markdown destekli',
+    newsTitlePlaceholder: 'Haber başlığı...',
+    newsContentPlaceholder: 'Haber içeriği... (Markdown desteklenir)',
+    publishImmediately: 'Hemen yayınla',
+    create: 'oluştur',
     findNewPair: 'yeni eş bul',
     disconnect: 'bağlantıyı kes',
     typeAnonymously: 'anonim olarak yaz...',

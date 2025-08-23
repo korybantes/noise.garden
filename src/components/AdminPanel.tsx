@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { getAllUsers, updateUserRole, getUserStats, UserRole, banUser, unbanUser, getBannedUsers, createAdminInvite, muteUser, unmuteUser, getMutedUsers } from '../lib/database';
 import { useLanguage } from '../hooks/useLanguage';
 import { NotificationService } from '../services/notificationService';
+import { ChangelogEditor } from './ChangelogEditor';
 
 interface AdminPanelProps {
   onClose: () => void;
@@ -73,7 +74,7 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
   const [showBanModal, setShowBanModal] = useState<{ show: boolean; userId: string; username: string }>({ show: false, userId: '', username: '' });
   const [banReason, setBanReason] = useState('');
   const [banning, setBanning] = useState(false);
-  const [activeTab, setActiveTab] = useState<'users' | 'reports' | 'banned' | 'muted' | 'invites' | 'feedback'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'reports' | 'banned' | 'muted' | 'invites' | 'feedback' | 'news'>('users');
   const [generatingInvite, setGeneratingInvite] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState('');
@@ -140,11 +141,10 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
 
   const loadFlaggedPosts = async () => {
     try {
-      const response = await fetch('/api/community-health', {
+      const response = await fetch('/api/app.mjs', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
         },
         body: JSON.stringify({
           action: 'getFlaggedPosts',
@@ -167,11 +167,10 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
   const loadInvites = async () => {
     if (!user) return [];
     try {
-      const response = await fetch('/api/invites', {
+      const response = await fetch('/api/app.mjs', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
         },
         body: JSON.stringify({
           action: 'getInvitesCreatedBy',
@@ -194,11 +193,10 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
   const loadFeedbackTickets = async () => {
     if (!user) return [];
     try {
-      const response = await fetch('/api/feedback', {
+      const response = await fetch('/api/app.mjs', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
         },
         body: JSON.stringify({
           action: 'getFeedbackTickets',
@@ -621,6 +619,20 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
                 )}
               </div>
             </button>
+            <button
+              onClick={() => setActiveTab('news')}
+              className={`px-2 sm:px-4 py-2 font-mono text-xs sm:text-sm transition-colors ${
+                activeTab === 'news'
+                  ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
+              }`}
+            >
+              <div className="flex items-center gap-1 sm:gap-2">
+                <span className="text-lg">📰</span>
+                <span className="hidden sm:inline">{language === 'tr' ? 'Haberler' : 'News'}</span>
+                <span className="sm:hidden">{language === 'tr' ? 'Haberler' : 'News'}</span>
+              </div>
+            </button>
           </div>
 
           <div className="p-2 sm:p-4 overflow-y-auto max-h-[calc(90vh-140px)]">
@@ -680,6 +692,28 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 {language === 'tr' ? 'Tüm kullanıcılara test bildirimi gönderir' : 'Sends a test notification to all users'}
               </p>
+              
+              {/* Real-time Notification Test Buttons */}
+              <div className="mt-3 flex gap-2">
+                <button
+                  onClick={() => window.dispatchEvent(new CustomEvent('newNotification', { detail: { type: 'reply' } }))}
+                  className="px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition-colors"
+                >
+                  Test Reply
+                </button>
+                <button
+                  onClick={() => window.dispatchEvent(new CustomEvent('newNotification', { detail: { type: 'repost' } }))}
+                  className="px-3 py-1 bg-purple-600 text-white rounded text-xs hover:bg-purple-700 transition-colors"
+                >
+                  Test Repost
+                </button>
+                <button
+                  onClick={() => window.dispatchEvent(new CustomEvent('newNotification', { detail: { type: 'mention' } }))}
+                  className="px-3 py-1 bg-orange-600 text-white rounded text-xs hover:bg-orange-700 transition-colors"
+                >
+                  Test Mention
+                </button>
+              </div>
             </div>
 
             {/* Users Section */}
@@ -1089,6 +1123,11 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
                   </div>
                 )}
               </div>
+            )}
+
+            {/* News Section */}
+            {activeTab === 'news' && (
+              <ChangelogEditor />
             )}
 
             {/* Feedback Section */}

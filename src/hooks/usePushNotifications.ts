@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from './useAuth';
 
 interface NotificationData {
-  type: 'newMessage' | 'randomPost' | 'mention' | 'reply';
+  type: 'newMessage' | 'randomPost' | 'mention' | 'reply' | 'repost' | 'quarantine';
   title: string;
   body: string;
   data?: any;
@@ -94,7 +94,15 @@ export function usePushNotifications() {
         PushNotifications.addListener('pushNotificationReceived', (notification) => {
           console.log('Push received:', notification);
           // Handle notification when app is in foreground
-          // You can show a toast or update UI here
+          // Trigger real-time notification event for web
+          if (typeof window !== 'undefined') {
+            const data = notification.data;
+            if (data?.type) {
+              window.dispatchEvent(new CustomEvent('newNotification', { 
+                detail: { type: data.type } 
+              }));
+            }
+          }
         });
 
         PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
@@ -102,6 +110,16 @@ export function usePushNotifications() {
           // Handle notification when user taps on it
           const data = notification.notification.data;
           
+          // Trigger real-time notification event for web
+          if (typeof window !== 'undefined') {
+            if (data?.type) {
+              window.dispatchEvent(new CustomEvent('newNotification', { 
+                detail: { type: data.type } 
+              }));
+            }
+          }
+          
+          // Navigate based on notification type (if needed)
           if (data?.type === 'newMessage') {
             // Navigate to messages
             // setView('messages');

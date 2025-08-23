@@ -18,7 +18,7 @@ export function Feed() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [offset, setOffset] = useState(0);
-  const [sortBy, setSortBy] = useState<'newest' | 'oldest'>('newest');
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'random'>('newest');
   const [replyTo, setReplyTo] = useState<PostType | null>(null);
   const [viewingReplies, setViewingReplies] = useState<{ post: PostType; replies: PostType[] } | null>(null);
   const [settingsVersion, setSettingsVersion] = useState(0);
@@ -28,8 +28,6 @@ export function Feed() {
   const { language } = useLanguage();
   const { currentRoom, clearRoom } = useNavigation();
 
-  const touchStartY = useRef<number | null>(null);
-  const pulling = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const settings = useMemo(() => loadFeedSettings(), [settingsVersion]);
@@ -154,7 +152,7 @@ export function Feed() {
         setViewingReplies(null);
       }
     })();
-  }, [route.name, route.name === 'post' ? route.params.id : null]);
+  }, [route?.name === 'post' ? (route as any).params?.id : '']);
 
   // Pull-to-refresh via downward swipe at top (mobile only)
   useEffect(() => {
@@ -373,19 +371,12 @@ export function Feed() {
               value={sortBy} 
               options={[
                 { value: 'newest', label: t('newest', language) },
-                { value: 'oldest', label: t('oldest', language) }
+                { value: 'oldest', label: t('oldest', language) },
+                { value: 'random', label: t('random', language) }
               ]} 
-              onChange={(v) => setSortBy(v as 'newest' | 'oldest')} 
+              onChange={(v) => setSortBy(v as 'newest' | 'oldest' | 'random')} 
               ariaLabel={t('sortBy', language)}
             />
-          <button
-              onClick={() => loadPosts({ silent: false, reset: true })}
-            disabled={loading}
-            className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-mono text-sm transition-colors disabled:opacity-50"
-          >
-            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-            {t('refresh', language)}
-          </button>
           </div>
         </div>
 
