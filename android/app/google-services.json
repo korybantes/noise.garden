@@ -21,6 +21,11 @@
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": []
+        },
+        "fcm_config": {
+          "fcm_options": {
+            "sender_id": "144831887598"
+          }
         }
       }
     }

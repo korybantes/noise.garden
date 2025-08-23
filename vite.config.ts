@@ -20,7 +20,6 @@ export default defineConfig({
   base: './',
   build: {
     rollupOptions: {
-      external: [/^@capacitor\/.*$/],
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom'],
@@ -32,10 +31,9 @@ export default defineConfig({
   resolve: {
     alias: {
       // Provide empty modules for Capacitor plugins in web environment
-      '@capacitor/core': resolve(__dirname, 'src/lib/capacitor-stubs/core.ts'),
       '@capacitor/splash-screen': resolve(__dirname, 'src/lib/capacitor-stubs/splash-screen.ts'),
       '@capacitor/haptics': resolve(__dirname, 'src/lib/capacitor-stubs/haptics.ts'),
-      '@capacitor/push-notifications': resolve(__dirname, 'src/lib/capacitor-stubs/push-notifications.ts'),
+      // Don't stub Firebase plugin - let it use the real one
       '@capacitor/share': resolve(__dirname, 'src/lib/capacitor-stubs/share.ts'),
     }
   }

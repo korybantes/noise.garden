@@ -15,6 +15,7 @@ import { Footer } from './components/Footer';
 import { RouterProvider, useRouter } from './hooks/useRouter';
 import { OnboardingBackupCodes } from './components/OnboardingBackupCodes';
 import { UserSettings } from './components/UserSettings';
+import { NotificationTester } from './components/NotificationTester';
 import { usePushNotifications } from './hooks/usePushNotifications';
 import { NotificationToast } from './components/NotificationToast';
 
@@ -109,6 +110,7 @@ function AppContent() {
          view === 'invite' ? <InvitePage /> :
          view === 'notifications' ? <NotificationsPage /> :
          view === 'news' ? <NewsPage /> :
+         view === 'notificationTester' ? <NotificationTester /> :
          view === 'settings' ? <UserSettings /> : <Feed />}
         </div>
         

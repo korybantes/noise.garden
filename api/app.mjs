@@ -24,17 +24,19 @@ let firebaseApp;
 try {
   // For development, you can use a service account key file
   // In production, use environment variables
-  if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+  if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY || process.env.VITE_FIREBASE_SERVICE_ACCOUNT_KEY) {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY || process.env.VITE_FIREBASE_SERVICE_ACCOUNT_KEY);
     firebaseApp = admin.initializeApp({
       credential: admin.credential.cert(serviceAccount)
     });
+    console.log('✅ Firebase Admin SDK initialized successfully');
   } else {
     // For development without Firebase (will log warnings)
-    console.log('Firebase not configured. Push notifications will be logged but not sent.');
+    console.log('⚠️ Firebase not configured. Push notifications will be logged but not sent.');
+    console.log('💡 Set FIREBASE_SERVICE_ACCOUNT_KEY environment variable to enable push notifications');
   }
 } catch (error) {
-  console.log('Firebase initialization failed:', error.message);
+  console.log('❌ Firebase initialization failed:', error.message);
   console.log('Push notifications will be logged but not sent.');
 }
 
@@ -639,6 +641,49 @@ export default async function handler(req, res) {
           // Log notification for development
           console.log('Notification to all users would be sent:', { payload, deviceTokens });
           return res.status(200).json({ ok: true, message: 'Notification logged (Firebase not configured)' });
+        }
+      }
+
+      case 'sendTestPushNotification': {
+        if (!me) return res.status(401).json({ error: 'unauthorized' });
+        if (me.role !== 'admin') return res.status(403).json({ error: 'admin_only' });
+        
+        const { deviceToken, platform } = args;
+        if (!deviceToken) {
+          return res.status(400).json({ error: 'device_token_required' });
+        }
+        
+        if (firebaseApp) {
+          try {
+            const message = {
+              notification: {
+                title: 'Test Notification',
+                body: `This is a test push notification from ${platform || 'Noise Garden'}!`,
+              },
+              data: {
+                type: 'test',
+                platform: platform || 'unknown',
+                timestamp: new Date().toISOString(),
+                test: 'true'
+              },
+              token: deviceToken,
+            };
+            
+            const response = await admin.messaging().send(message);
+            console.log('Successfully sent test push notification:', response);
+            return res.status(200).json({ 
+              ok: true, 
+              messageId: response,
+              message: 'Test push notification sent successfully'
+            });
+          } catch (error) {
+            console.error('Error sending test push notification:', error);
+            return res.status(500).json({ error: 'failed_to_send_test_notification', details: error.message });
+          }
+        } else {
+          // Log notification for development
+          console.log('Test push notification would be sent:', { deviceToken, platform });
+          return res.status(200).json({ ok: true, message: 'Test notification logged (Firebase not configured)' });
         }
       }
 

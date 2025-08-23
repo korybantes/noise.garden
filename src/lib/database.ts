@@ -1,6 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 
-const sql = neon(import.meta.env.VITE_NEON_DB || process.env.NEON_DB!);
+const sql = neon(import.meta.env.VITE_NEON_DB || process.env.NEON_DB!, { disableWarningInBrowsers: true });
 
 export type UserRole = 'user' | 'moderator' | 'admin' | 'community_manager';
 

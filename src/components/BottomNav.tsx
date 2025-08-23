@@ -130,6 +130,12 @@ export function BottomNav() {
             <span className="truncate text-[10px] leading-tight">{language === 'tr' ? 'bildirimler' : 'notifications'}</span>
           </button>
           {getPanelButton()}
+          {user?.role === 'admin' && (
+            <button onClick={() => setView('notificationTester')} className={btnClass(view === 'notificationTester')}>
+              <Bell size={18} />
+              <span className="truncate text-[10px] leading-tight">Test</span>
+            </button>
+          )}
         </div>
       </nav>
 

@@ -22,8 +22,13 @@ const config: CapacitorConfig = {
       style: "dark",
       backgroundColor: "#1F2937"
     },
-    PushNotifications: {
+    FCM: {
       presentationOptions: ["badge", "sound", "alert"]
+    },
+    LocalNotifications: {
+      smallIcon: "ic_launcher",
+      iconColor: "#488AFF",
+      sound: "default"
     }
   }
 };

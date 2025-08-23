@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from './useAuth';
+import { LocalNotifications } from '@capacitor/local-notifications';
 
 interface LocalNotification {
   id: string;
@@ -16,37 +17,43 @@ export function useLocalNotifications() {
 
   // Request notification permission
   const requestPermission = async () => {
-    if (!('Notification' in window)) {
-      console.log('This browser does not support notifications');
-      return false;
-    }
-
     try {
-      const result = await Notification.requestPermission();
-      setPermission(result);
-      return result === 'granted';
+      // Use Capacitor LocalNotifications for Android
+      const result = await LocalNotifications.requestPermissions();
+      if (result.display === 'granted') {
+        setPermission('granted');
+        return true;
+      } else {
+        setPermission('denied');
+        return false;
+      }
     } catch (error) {
       console.error('Error requesting notification permission:', error);
       return false;
     }
   };
 
-  // Send a local notification
+  // Send a local notification using Capacitor
   const sendNotification = async (title: string, body: string, data?: any) => {
-    if (permission !== 'granted') {
-      const granted = await requestPermission();
-      if (!granted) return;
-    }
-
     try {
-      // Create notification
-      const notification = new Notification(title, {
-        body,
-        icon: '/favicon.ico',
-        badge: '/favicon.ico',
-        data,
-        requireInteraction: false,
-        silent: false
+      // Request permission if not granted
+      if (permission !== 'granted') {
+        const granted = await requestPermission();
+        if (!granted) return;
+      }
+
+      // Create notification using Capacitor
+      const notification = await LocalNotifications.schedule({
+        notifications: [
+          {
+            id: Date.now(),
+            title: title,
+            body: body,
+            data: data,
+            sound: 'default',
+            schedule: { at: new Date(Date.now() + 100) } // Send in 100ms
+          }
+        ]
       });
 
       // Add to our list
@@ -60,26 +67,6 @@ export function useLocalNotifications() {
 
       setNotifications(prev => [newNotification, ...prev.slice(0, 9)]); // Keep last 10
 
-      // Auto-remove after 5 seconds
-      setTimeout(() => {
-        notification.close();
-      }, 5000);
-
-      // Handle click
-      notification.onclick = () => {
-        window.focus();
-        notification.close();
-        
-        // Handle navigation based on data
-        if (data?.type === 'newMessage') {
-          // Navigate to messages
-          console.log('Navigate to messages');
-        } else if (data?.type === 'randomPost') {
-          // Navigate to feed
-          console.log('Navigate to feed');
-        }
-      };
-
       return notification;
     } catch (error) {
       console.error('Error sending notification:', error);
@@ -87,8 +74,8 @@ export function useLocalNotifications() {
   };
 
   // Test notification function
-  const sendTestNotification = () => {
-    sendNotification(
+  const sendTestNotification = async () => {
+    await sendNotification(
       'Test Notification', 
       'This is a test notification from Noise Garden!',
       { type: 'test', timestamp: Date.now() }
@@ -96,24 +83,24 @@ export function useLocalNotifications() {
   };
 
   // Send different types of notifications
-  const sendMessageNotification = (senderName: string) => {
-    sendNotification(
+  const sendMessageNotification = async (senderName: string) => {
+    await sendNotification(
       'New Message', 
       `${senderName} sent you a message`,
       { type: 'newMessage', sender: senderName }
     );
   };
 
-  const sendPostNotification = (authorName: string) => {
-    sendNotification(
+  const sendPostNotification = async (authorName: string) => {
+    await sendNotification(
       'New Post', 
       `${authorName} posted something new`,
       { type: 'randomPost', author: authorName }
     );
   };
 
-  const sendMentionNotification = (mentionerName: string) => {
-    sendNotification(
+  const sendMentionNotification = async (mentionerName: string) => {
+    await sendNotification(
       'You were mentioned', 
       `${mentionerName} mentioned you in a post`,
       { type: 'mention', mentioner: mentionerName }
@@ -121,20 +108,43 @@ export function useLocalNotifications() {
   };
 
   // Clear all notifications
-  const clearNotifications = () => {
-    setNotifications([]);
+  const clearNotifications = async () => {
+    try {
+      await LocalNotifications.clear();
+      setNotifications([]);
+    } catch (error) {
+      console.error('Error clearing notifications:', error);
+    }
   };
 
   // Remove specific notification
-  const removeNotification = (id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
+  const removeNotification = async (id: string) => {
+    try {
+      await LocalNotifications.cancel({ notifications: [{ id: parseInt(id) }] });
+      setNotifications(prev => prev.filter(n => n.id !== id));
+    } catch (error) {
+      console.error('Error removing notification:', error);
+    }
   };
 
   useEffect(() => {
     // Check permission on mount
-    if ('Notification' in window) {
-      setPermission(Notification.permission);
-    }
+    const checkPermission = async () => {
+      try {
+        const result = await LocalNotifications.checkPermissions();
+        if (result.display === 'granted') {
+          setPermission('granted');
+        } else if (result.display === 'denied') {
+          setPermission('denied');
+        } else {
+          setPermission('default');
+        }
+      } catch (error) {
+        console.error('Error checking notification permission:', error);
+      }
+    };
+
+    checkPermission();
   }, []);
 
   return {

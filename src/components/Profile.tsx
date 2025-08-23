@@ -269,6 +269,15 @@ export function Profile() {
                   Mention
                 </button>
               </div>
+              <div className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
+                <button
+                  onClick={() => setView('notificationTester')}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-blue-700 text-white rounded-md font-mono text-xs hover:bg-blue-800 transition-colors"
+                >
+                  <Bell size={12} />
+                  Open Notification Testing Center
+                </button>
+              </div>
               <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
                 Admin-only: Test different notification types
               </p>

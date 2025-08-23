@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Users, MessageSquare, Heart, CheckCircle, ArrowRight } from 'lucide-react';
+import { Shield, Users, MessageSquare, Heart, CheckCircle, ArrowRight, Bell } from 'lucide-react';
 import { t } from '../lib/translations';
 import { useLanguage } from '../hooks/useLanguage';
+import { PushNotifications } from '@capacitor/push-notifications';
 
 interface WelcomeStep {
   id: string;
@@ -46,6 +47,13 @@ export default function Welcome() {
       title: t('keyFeatures', language),
       description: t('featuresDescription', language),
       color: 'from-purple-500 to-violet-500'
+    },
+    {
+      id: 'notifications',
+      icon: <Bell size={32} />,
+      title: 'Enable Notifications',
+      description: 'Stay up to date! Enable push notifications to get important updates and messages.',
+      color: 'from-yellow-500 to-orange-500'
     }
   ];
 
@@ -69,6 +77,20 @@ export default function Welcome() {
     }
   };
 
+  const requestNotificationPermission = async () => {
+    try {
+      const perm = await PushNotifications.requestPermissions();
+      if (perm.receive === 'granted') {
+        await PushNotifications.register();
+        alert('Notifications enabled!');
+      } else {
+        alert('Notification permission denied.');
+      }
+    } catch (e) {
+      alert('Error requesting notification permission.');
+    }
+  };
+
   const currentStepData = steps[currentStep];
 
   return (
@@ -88,14 +110,20 @@ export default function Welcome() {
           <div className={`w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br ${currentStepData.color} flex items-center justify-center text-white shadow-lg`}>
             {currentStepData.icon}
           </div>
-          
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4 font-mono">
             {currentStepData.title}
           </h1>
-          
           <p className="text-gray-600 dark:text-gray-300 text-lg leading-relaxed max-w-md mx-auto">
             {currentStepData.description}
           </p>
+          {currentStepData.id === 'notifications' && (
+            <button
+              onClick={requestNotificationPermission}
+              className="px-6 py-3 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-lg font-medium hover:from-yellow-600 hover:to-orange-600 transition-all duration-200 flex items-center gap-2 mt-4"
+            >
+              Enable Notifications
+            </button>
+          )}
         </div>
 
         {/* Step indicators */}

@@ -104,6 +104,8 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
     assigned_to?: string;
     assigned_username?: string;
   }>>([]);
+  const [customNotification, setCustomNotification] = useState({ title: '', body: '', targetToken: '' });
+  const [sendingCustom, setSendingCustom] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -458,6 +460,39 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
     } catch (error) {
       setError('Failed to send test notification');
       console.error('Test notification error:', error);
+    }
+  };
+
+  const handleSendCustomNotification = async () => {
+    setSendingCustom(true);
+    setError('');
+    setSuccessMessage('');
+    try {
+      const response = await fetch('/api/app', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        },
+        body: JSON.stringify({
+          action: 'sendTestPushNotification',
+          args: {
+            deviceToken: customNotification.targetToken,
+            title: customNotification.title,
+            body: customNotification.body,
+            platform: 'android'
+          }
+        })
+      });
+      if (response.ok) {
+        setSuccessMessage('Custom notification sent!');
+      } else {
+        setError('Failed to send custom notification');
+      }
+    } catch (err) {
+      setError('Failed to send custom notification');
+    } finally {
+      setSendingCustom(false);
     }
   };
 
