@@ -121,7 +121,6 @@ function AudioWaveformPlayer({ url }: { url: string }) {
         barRadius: 3,
         cursorColor: '#18181b',
         barGap: 1,
-        responsive: true,
       });
       
       wavesurferRef.current.load(url);
@@ -304,11 +303,11 @@ export function Post({ post, onReply, onViewReplies, onDeleted, onReposted, isRe
   };
 
   return (
-    <div className={`bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4 transition-shadow hover:shadow-sm ${isReply ? 'ml-6 border-l-4 border-l-gray-200 dark:border-l-gray-800' : ''}`} onMouseEnter={() => setShowActions(true)} onMouseLeave={() => setShowActions(false)}>
+    <div className={`relative bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4 transition-shadow hover:shadow-sm ${isReply ? 'ml-6 border-l-3 border-l-gray-200 dark:border-l-gray-800' : ''} ${post.is_pinned ? 'ring-4 ring-yellow-400 ring-opacity-60 border-yellow-400 shadow-lg' : ''}`} onMouseEnter={() => setShowActions(true)} onMouseLeave={() => setShowActions(false)}>
       {/* Pin icon for pinned posts */}
       {post.is_pinned && (
-        <div className="absolute -top-3 -left-3 bg-yellow-400 dark:bg-yellow-600 rounded-full p-1 shadow" title="Pinned">
-          <Pin size={18} className="text-white" />
+        <div className="absolute top-2 right-2 z-10 bg-yellow-400 dark:bg-yellow-600 rounded-full p-1 shadow-lg" title="Pinned">
+          <Pin size={20} className="text-white drop-shadow" />
         </div>
       )}
       <div className="flex items-start justify-between mb-2">

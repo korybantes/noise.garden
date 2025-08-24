@@ -48,9 +48,9 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioPermission, setAudioPermission] = useState<'unknown' | 'granted' | 'denied'>('unknown');
-  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const wavesurferRef = useRef<WaveSurfer | null>(null);
   const waveformContainerRef = useRef<HTMLDivElement | null>(null);
+  const [audioSupported, setAudioSupported] = useState(true);
 
 
 	// Auto-fill hashtag when in a room
@@ -75,7 +75,27 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
     }
   }, [audioPermission]);
 
+  useEffect(() => {
+    // Check for MediaRecorder and supported MIME types
+    let supported = false;
+    if (typeof window !== 'undefined' && 'MediaRecorder' in window) {
+      const types = [
+        'audio/webm',
+        'audio/webm;codecs=opus',
+        'audio/ogg',
+        'audio/mp4',
+        'audio/mpeg',
+      ];
+      supported = types.some(type => MediaRecorder.isTypeSupported(type));
+    }
+    setAudioSupported(supported);
+  }, []);
+
   const startRecording = async () => {
+    if (!audioSupported) {
+      alert('Audio recording is not supported on this device/browser.');
+      return;
+    }
     if (audioPermission !== 'granted') {
       try {
         await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -86,13 +106,24 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
       }
     }
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const recorder = new window.MediaRecorder(stream);
+    // Prefer supported MIME type
+    let mimeType = '';
+    if (window.MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+      mimeType = 'audio/webm;codecs=opus';
+    } else if (window.MediaRecorder.isTypeSupported('audio/webm')) {
+      mimeType = 'audio/webm';
+    } else if (window.MediaRecorder.isTypeSupported('audio/mp4')) {
+      mimeType = 'audio/mp4';
+    } else if (window.MediaRecorder.isTypeSupported('audio/mpeg')) {
+      mimeType = 'audio/mpeg';
+    }
+    const recorder = mimeType ? new window.MediaRecorder(stream, { mimeType }) : new window.MediaRecorder(stream);
     const chunks: BlobPart[] = [];
     recorder.ondataavailable = (e) => {
       if (e.data.size > 0) chunks.push(e.data);
     };
     recorder.onstop = () => {
-      const blob = new Blob(chunks, { type: 'audio/webm' });
+      const blob = new Blob(chunks, { type: mimeType || 'audio/webm' });
       setAudioBlob(blob);
       setAudioUrl(URL.createObjectURL(blob));
       setRecording(false);
@@ -132,7 +163,6 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
         barRadius: 3,
         cursorColor: '#18181b',
         barGap: 1,
-        responsive: true,
       });
       wavesurferRef.current.load(audioUrl);
     }
@@ -356,7 +386,7 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
               type="button" 
               onClick={startRecording}
               className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-              disabled={audioPermission === 'denied' || recording}
+              disabled={audioPermission === 'denied' || recording || !audioSupported}
             >
               <Mic size={16} />
             </button>
@@ -504,6 +534,9 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
               <button type="button" onClick={removeAudio} className="text-gray-400 hover:text-red-600"><Trash2 size={16} /></button>
             </div>
           </div>
+        )}
+        {!audioSupported && (
+          <div className="text-red-500 text-sm font-mono mt-2">Audio recording is not supported on this device/browser.</div>
         )}
 
       </form>
