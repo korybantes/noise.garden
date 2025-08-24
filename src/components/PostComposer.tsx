@@ -96,6 +96,7 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
       alert('Audio recording is not supported on this device/browser.');
       return;
     }
+    // Only request permission when user clicks record
     if (audioPermission !== 'granted') {
       try {
         await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -218,9 +219,31 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
     try {
       let audioUrlToSend: string | null = null;
       if (audioBlob) {
-              // For development, store audio as blob URL
-      // In production, this would upload to a server
-      audioUrlToSend = URL.createObjectURL(audioBlob);
+        // Check audio duration (max 45 seconds)
+        const audio = document.createElement('audio');
+        audio.src = URL.createObjectURL(audioBlob);
+        await new Promise((resolve) => {
+          audio.onloadedmetadata = () => resolve(null);
+        });
+        if (audio.duration > 45) {
+          alert('Audio posts can be max 45 seconds.');
+          setLoading(false);
+          return;
+        }
+        // Upload audio to /api/uploads
+        const formData = new FormData();
+        formData.append('file', audioBlob, 'audio.webm');
+        const uploadRes = await fetch('/api/uploads', {
+          method: 'POST',
+          body: formData,
+        });
+        if (!uploadRes.ok) {
+          alert('Audio upload failed.');
+          setLoading(false);
+          return;
+        }
+        const uploadData = await uploadRes.json();
+        audioUrlToSend = uploadData.url;
       }
       if (replyTo && asWhisper) {
         // Send whisper to API
@@ -251,8 +274,7 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
 			setPollOptions(['','']);
 			setAsPoll(false);
 		} else {
-			// For now, create post without audio URL since we don't have a backend server
-			// In production, this would use the backend API
+			// Create post with permanent audio URL
 			const newPost = await createPost(
 				user.userId, 
 				postContent, 
@@ -512,6 +534,7 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
           <div className="mt-2 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
             <div className="flex items-center gap-3 w-full">
               <button 
+                type="button"
                 onClick={togglePlay} 
                 disabled={!loaded}
                 className="bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-full w-8 h-8 flex items-center justify-center hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors disabled:opacity-50"
