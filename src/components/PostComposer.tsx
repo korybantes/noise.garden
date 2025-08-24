@@ -244,6 +244,8 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
         }
         const uploadData = await uploadRes.json();
         audioUrlToSend = uploadData.url;
+        console.log('Audio uploaded successfully:', uploadData);
+        console.log('Audio URL to send:', audioUrlToSend);
       }
       if (replyTo && asWhisper) {
         // Send whisper to API
@@ -275,6 +277,7 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
 			setAsPoll(false);
 		} else {
 			// Create post with permanent audio URL
+			console.log('Creating post with audio URL:', audioUrlToSend);
 			const newPost = await createPost(
 				user.userId, 
 				postContent, 
@@ -289,6 +292,7 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
 				isPopupThread ? popupReplyLimit : undefined,
 				isPopupThread ? popupTimeLimit : undefined
 			);
+			console.log('Post created:', newPost);
 
       // Check for mentions and create them
       const mentionRegex = /@([a-zA-Z0-9_-]+)/g;

@@ -643,10 +643,11 @@ export async function deletePost(postId: string, requesterId: string): Promise<b
 }
 
 export async function repostPost(userId: string, originalPostId: string): Promise<Post> {
-	const original = await sql`SELECT content, image_url FROM posts WHERE id = ${originalPostId}`;
-	const content = original[0]?.content || '';
-	const imageUrl = original[0]?.image_url || null;
-	return createPost(userId, content, undefined, originalPostId, imageUrl);
+  const original = await sql`SELECT content, image_url, audio_url FROM posts WHERE id = ${originalPostId}`;
+  const content = original[0]?.content || '';
+  const imageUrl = original[0]?.image_url || null;
+  const audioUrl = original[0]?.audio_url || null;
+  return createPost(userId, content, undefined, originalPostId, imageUrl, audioUrl);
 }
 
 export async function pinPost(postId: string, adminId: string): Promise<void> {
