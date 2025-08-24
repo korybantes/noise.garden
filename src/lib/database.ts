@@ -167,7 +167,8 @@ export async function initDatabase() {
 			popup_reply_limit INTEGER,
 			popup_time_limit INTEGER,
 			popup_closed_at TIMESTAMPTZ,
-			replies_disabled BOOLEAN DEFAULT FALSE
+			replies_disabled BOOLEAN DEFAULT FALSE,
+			is_pinned BOOLEAN DEFAULT FALSE
 		)
 	`;
 
@@ -378,6 +379,7 @@ export async function initDatabase() {
 	await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS popup_closed_at TIMESTAMPTZ`;
 	await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS replies_disabled BOOLEAN DEFAULT FALSE`;
 	await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS audio_url TEXT`;
+	await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT FALSE`;
 }
 
 export async function createUser(username: string, passwordHash: string): Promise<User> {
@@ -432,7 +434,8 @@ export async function createPost(
 			${isWhisper}, ${repliesDisabled}, ${isPopupThread}, ${popupReplyLimit || null}, ${popupTimeLimit || null}, ${audioUrl || null}
 		)
 		RETURNING id, user_id, content, created_at, expires_at, parent_id, repost_of, image_url,
-					is_whisper, replies_disabled, is_popup_thread, popup_reply_limit, popup_time_limit, audio_url
+					is_whisper, replies_disabled, is_popup_thread, popup_reply_limit, popup_time_limit, audio_url,
+					is_quarantined, is_pinned
 	`;
 	
 	const post = result[0] as any;
@@ -583,6 +586,7 @@ export async function getPostReplies(postId: string): Promise<Post[]> {
 	const result = await sql`
 		SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of, p.image_url, p.audio_url,
 				 p.is_whisper, p.is_quarantined, p.is_popup_thread, p.popup_reply_limit, p.popup_time_limit, p.popup_closed_at, p.replies_disabled,
+				 p.is_pinned,
 				 u.username, u.role, u.avatar_url,
 				 0 as reply_count
 		FROM posts p
@@ -597,6 +601,7 @@ export async function getUserPostsByUsername(username: string): Promise<Post[]> 
 	const result = await sql`
 		SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of, p.image_url, p.audio_url,
 				 p.is_whisper, p.is_quarantined, p.is_popup_thread, p.popup_reply_limit, p.popup_time_limit, p.popup_closed_at, p.replies_disabled,
+				 p.is_pinned,
 				 u.username, u.role, u.avatar_url,
 				 (SELECT COUNT(*) FROM posts replies WHERE replies.parent_id = p.id) as reply_count
 		FROM posts p
@@ -611,6 +616,7 @@ export async function getPostById(id: string): Promise<Post | null> {
 	const result = await sql`
 		SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of, p.image_url, p.audio_url,
 				 p.is_whisper, p.is_quarantined, p.is_popup_thread, p.popup_reply_limit, p.popup_time_limit, p.popup_closed_at, p.replies_disabled,
+				 p.is_pinned,
 				 u.username, u.role, u.avatar_url,
 				 (SELECT COUNT(*) FROM posts replies WHERE replies.parent_id = p.id) as reply_count,
 				 (SELECT COUNT(*) FROM posts rp WHERE rp.repost_of = p.id) as repost_count
@@ -970,6 +976,7 @@ export async function getFlaggedPosts(): Promise<Post[]> {
 	const result = await sql`
 		SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of, p.image_url, p.audio_url,
 				 p.is_quarantined, p.is_popup_thread, p.popup_reply_limit, p.popup_time_limit, p.popup_closed_at, p.replies_disabled,
+				 p.is_pinned,
 				 u.username, u.role, u.avatar_url,
 				 (SELECT COUNT(*) FROM posts replies WHERE replies.parent_id = p.id) as reply_count,
 				 (SELECT COUNT(*) FROM posts rp WHERE rp.repost_of = p.id) as repost_count,
@@ -1227,7 +1234,9 @@ export async function createWhisperReply(
 		VALUES (
 			${userId}, ${content}, ${parentWhisperId}, ${expiresAt || sql`DEFAULT`}, TRUE
 		)
-		RETURNING id, user_id, content, created_at, expires_at, parent_id, is_whisper
+		RETURNING id, user_id, content, created_at, expires_at, parent_id, is_whisper,
+					is_quarantined, is_popup_thread, popup_reply_limit, popup_time_limit, popup_closed_at, replies_disabled,
+					is_pinned, image_url, audio_url
 	`;
 	
 	const whisper = result[0] as any;
@@ -1261,6 +1270,8 @@ export async function getWhisperThread(parentPostId: string): Promise<Post[]> {
 			WHERE p.is_whisper = TRUE AND p.expires_at > NOW()
 		)
 		SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.is_whisper,
+			   p.is_quarantined, p.is_popup_thread, p.popup_reply_limit, p.popup_time_limit, p.popup_closed_at, p.replies_disabled,
+			   p.is_pinned, p.image_url, p.audio_url,
 			   u.username, u.role, u.avatar_url,
 			   0 as reply_count, 0 as repost_count
 		FROM whisper_chain p
