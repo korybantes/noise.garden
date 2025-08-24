@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { MessageCircle, Share2, Flag, Trash2, MoreHorizontal, Link2, Lock, ShieldCheck, ShieldAlert, Repeat2, Clock } from 'lucide-react';
+import { MessageCircle, Share2, Flag, Trash2, MoreHorizontal, Link2, Lock, ShieldCheck, ShieldAlert, Repeat2, Clock, Pin } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { Post as PostType, deletePost, getAcceptedMentionsForPost, getPostById } from '../lib/database';
+import { Post as PostType, deletePost, getAcceptedMentionsForPost, getPostById, pinPost, unpinPost } from '../lib/database';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigation } from '../hooks/useNavigation';
 import { RepostModal } from './RepostModal';
@@ -13,6 +13,7 @@ import { useLanguage } from '../hooks/useLanguage';
 import { ReplyThread } from './ReplyThread';
 import { Poll } from './Poll';
 import { WhisperBadge } from './WhisperBadge';
+import WaveSurfer from 'wavesurfer.js';
 
 interface PostProps {
   post: PostType;
@@ -98,6 +99,87 @@ function renderPostContent(content: string, mentions: string[] = [], setProfileU
   return <>{elements}</>;
 }
 
+function AudioWaveformPlayer({ url }: { url: string }) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const wavesurferRef = useRef<WaveSurfer | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+  
+  useEffect(() => {
+    if (containerRef.current && url) {
+      if (wavesurferRef.current) {
+        wavesurferRef.current.destroy();
+      }
+      
+      wavesurferRef.current = WaveSurfer.create({
+        container: containerRef.current,
+        waveColor: '#888',
+        progressColor: '#18181b',
+        height: 40,
+        barWidth: 3,
+        barRadius: 3,
+        cursorColor: '#18181b',
+        barGap: 1,
+        responsive: true,
+      });
+      
+      wavesurferRef.current.load(url);
+      wavesurferRef.current.on('ready', () => {
+        setDuration(wavesurferRef.current?.getDuration() || 0);
+        setLoaded(true);
+      });
+      wavesurferRef.current.on('finish', () => setPlaying(false));
+      wavesurferRef.current.on('play', () => setPlaying(true));
+      wavesurferRef.current.on('pause', () => setPlaying(false));
+    }
+    
+    return () => {
+      if (wavesurferRef.current) {
+        try {
+          wavesurferRef.current.destroy();
+        } catch (error: any) {
+          // Ignore AbortError during cleanup
+          if (error?.name !== 'AbortError') {
+            console.error('Error destroying wavesurfer:', error);
+          }
+        }
+      }
+    };
+  }, [url]);
+  
+  const togglePlay = () => {
+    if (wavesurferRef.current && loaded) {
+      wavesurferRef.current.playPause();
+    }
+  };
+  
+  return (
+    <div className="flex items-center gap-3 w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+      <button 
+        onClick={togglePlay} 
+        disabled={!loaded}
+        className="bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-full w-10 h-10 flex items-center justify-center hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors disabled:opacity-50"
+      >
+        {playing ? (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="6" y="4" width="4" height="16" rx="1"/>
+            <rect x="14" y="4" width="4" height="16" rx="1"/>
+          </svg>
+        ) : (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <polygon points="5,3 19,12 5,21"/>
+          </svg>
+        )}
+      </button>
+      <div ref={containerRef} className="flex-1 min-w-0" />
+      <span className="text-xs font-mono text-gray-500 dark:text-gray-400 ml-2 min-w-[40px] text-right">
+        {loaded ? duration.toFixed(1) + 's' : '...'}
+      </span>
+    </div>
+  );
+}
+
 export function Post({ post, onReply, onViewReplies, onDeleted, onReposted, isReply = false, inlineComposer = true }: PostProps) {
   const [showActions, setShowActions] = useState(false);
   const [showRepost, setShowRepost] = useState(false);
@@ -108,6 +190,7 @@ export function Post({ post, onReply, onViewReplies, onDeleted, onReposted, isRe
   const [refreshKey, setRefreshKey] = useState(0);
   const [acceptedMentions, setAcceptedMentions] = useState<string[]>([]);
   const [originalPost, setOriginalPost] = useState<PostType | null>(null);
+  const [pinning, setPinning] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
   const { setView, setProfileUsername, setCurrentRoom } = useNavigation();
@@ -164,6 +247,23 @@ export function Post({ post, onReply, onViewReplies, onDeleted, onReposted, isRe
     if (!ok) console.warn('Delete failed');
   };
 
+  const handlePin = async () => {
+    if (!user || user.role !== 'admin') return;
+    setPinning(true);
+    try {
+      if (post.is_pinned) {
+        await unpinPost(post.id, user.userId);
+      } else {
+        await pinPost(post.id, user.userId);
+      }
+      setRefreshKey(k => k + 1);
+    } catch (error) {
+      console.error('Failed to pin/unpin post:', error);
+    } finally {
+      setPinning(false);
+    }
+  };
+
   const sharePostAsImage = () => {
     // Show Instagram story generator modal
     setShowInstagramModal(true);
@@ -205,6 +305,12 @@ export function Post({ post, onReply, onViewReplies, onDeleted, onReposted, isRe
 
   return (
     <div className={`bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4 transition-shadow hover:shadow-sm ${isReply ? 'ml-6 border-l-4 border-l-gray-200 dark:border-l-gray-800' : ''}`} onMouseEnter={() => setShowActions(true)} onMouseLeave={() => setShowActions(false)}>
+      {/* Pin icon for pinned posts */}
+      {post.is_pinned && (
+        <div className="absolute -top-3 -left-3 bg-yellow-400 dark:bg-yellow-600 rounded-full p-1 shadow" title="Pinned">
+          <Pin size={18} className="text-white" />
+        </div>
+      )}
       <div className="flex items-start justify-between mb-2">
         <div className="flex items-center gap-2">
           {post.avatar_url && <img src={post.avatar_url.replace('/upload/', '/upload/f_auto,q_auto,w_64,h_64,c_fill,g_face/')} alt="avatar" className="w-6 h-6 rounded-full object-cover" />}
@@ -247,7 +353,13 @@ export function Post({ post, onReply, onViewReplies, onDeleted, onReposted, isRe
       )}
 
       <div className="font-mono text-sm text-gray-800 dark:text-gray-100 leading-relaxed mb-3 whitespace-pre-wrap">{renderPostContent(post.content, acceptedMentions, setProfileUsername, setView, setCurrentRoom)}</div>
-
+      {/* Audio post playback */}
+      {post.audio_url && (
+        <div className="mb-3">
+          <AudioWaveformPlayer url={post.audio_url} />
+        </div>
+      )}
+      
       {/* Poll (lazy-render) */}
       <Poll postId={post.id} />
       
@@ -304,6 +416,17 @@ export function Post({ post, onReply, onViewReplies, onDeleted, onReposted, isRe
                     >
                       <Lock size={14} />
                       toggle replies
+                    </button>
+                  )}
+                  
+                  {user && user.role === 'admin' && (
+                    <button
+                      onClick={handlePin}
+                      disabled={pinning}
+                      className="w-full text-left px-4 py-2 text-sm font-mono text-yellow-700 dark:text-yellow-300 hover:bg-yellow-100 dark:hover:bg-yellow-900 transition-colors flex items-center gap-2"
+                    >
+                      <Pin size={14} />
+                      {post.is_pinned ? 'Unpin Post' : 'Pin Post'}
                     </button>
                   )}
                   

@@ -1,11 +1,13 @@
 import { useRef, useState, useEffect } from 'react';
-import { Send, X, Smile, Clock, MoreHorizontal, Lock, ListPlus, MicOff } from 'lucide-react';
+import { Send, X, Smile, Clock, MoreHorizontal, Lock, ListPlus, MicOff, Mic, StopCircle, Trash2 } from 'lucide-react';
 import { createPost, createPollPost, createMention } from '../lib/database';
 import { useAuth } from '../hooks/useAuth';
 import { containsLink, sanitizeLinks } from '../lib/validation';
 import { t } from '../lib/translations';
 import { useLanguage } from '../hooks/useLanguage';
 import { useMuteStatus } from '../hooks/useMuteStatus';
+
+import WaveSurfer from 'wavesurfer.js';
 
 interface PostComposerProps {
   onPostCreated: () => void;
@@ -40,7 +42,16 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const { user } = useAuth();
   const { language } = useLanguage();
-  const { muteStatus, loading: muteLoading } = useMuteStatus();
+  const { muteStatus } = useMuteStatus();
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [audioPermission, setAudioPermission] = useState<'unknown' | 'granted' | 'denied'>('unknown');
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
+  const wavesurferRef = useRef<WaveSurfer | null>(null);
+  const waveformContainerRef = useRef<HTMLDivElement | null>(null);
+
 
 	// Auto-fill hashtag when in a room
 	useEffect(() => {
@@ -55,18 +66,132 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
 		}
 	}, [initialContent, replyTo]); // Removed 'content' from dependencies to prevent infinite loop
 
+  // Request mic permission on mobile
+  useEffect(() => {
+    if (audioPermission === 'unknown') {
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(() => setAudioPermission('granted'))
+        .catch(() => setAudioPermission('denied'));
+    }
+  }, [audioPermission]);
+
+  const startRecording = async () => {
+    if (audioPermission !== 'granted') {
+      try {
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        setAudioPermission('granted');
+      } catch {
+        setAudioPermission('denied');
+        return;
+      }
+    }
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const recorder = new window.MediaRecorder(stream);
+    const chunks: BlobPart[] = [];
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunks.push(e.data);
+    };
+    recorder.onstop = () => {
+      const blob = new Blob(chunks, { type: 'audio/webm' });
+      setAudioBlob(blob);
+      setAudioUrl(URL.createObjectURL(blob));
+      setRecording(false);
+    };
+    recorder.start();
+    setMediaRecorder(recorder);
+    setRecording(true);
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder) {
+      mediaRecorder.stop();
+      setMediaRecorder(null);
+      setRecording(false);
+    }
+
+  };
+
+  const removeAudio = () => {
+    setAudioBlob(null);
+    setAudioUrl(null);
+    if (wavesurferRef.current) {
+      wavesurferRef.current.destroy();
+      wavesurferRef.current = null;
+    }
+  };
+
+  // Initialize waveform when audio URL is set
+  useEffect(() => {
+    if (audioUrl && waveformContainerRef.current && !wavesurferRef.current) {
+      wavesurferRef.current = WaveSurfer.create({
+        container: waveformContainerRef.current,
+        waveColor: '#888',
+        progressColor: '#18181b',
+        height: 40,
+        barWidth: 3,
+        barRadius: 3,
+        cursorColor: '#18181b',
+        barGap: 1,
+        responsive: true,
+      });
+      wavesurferRef.current.load(audioUrl);
+    }
+    return () => {
+      if (wavesurferRef.current) {
+        try {
+          wavesurferRef.current.destroy();
+        } catch (error: any) {
+          // Ignore AbortError during cleanup
+          if (error?.name !== 'AbortError') {
+            console.error('Error destroying wavesurfer:', error);
+          }
+        }
+        wavesurferRef.current = null;
+      }
+    };
+  }, [audioUrl]);
+
+  const [playing, setPlaying] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (wavesurferRef.current) {
+      wavesurferRef.current.on('ready', () => {
+        setDuration(wavesurferRef.current?.getDuration() || 0);
+        setLoaded(true);
+      });
+      wavesurferRef.current.on('finish', () => setPlaying(false));
+      wavesurferRef.current.on('play', () => setPlaying(true));
+      wavesurferRef.current.on('pause', () => setPlaying(false));
+    }
+  }, [audioUrl]);
+
+  const togglePlay = () => {
+    if (wavesurferRef.current && loaded) {
+      wavesurferRef.current.playPause();
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+		const postContent = content.trim();
 		if (asPoll && replyTo) { return; }
-		if ((!content.trim() && !asPoll) || !user) return;
+		if ((!postContent && !asPoll && !audioBlob) || !user) return;
 		// Only block links in new posts, not in replies (chat)
-		if (!replyTo && containsLink(content)) {
-			setContent(sanitizeLinks(content));
+		if (!replyTo && containsLink(postContent)) {
+			setContent(sanitizeLinks(postContent));
 			return;
 		}
 
     setLoading(true);
     try {
+      let audioUrlToSend: string | null = null;
+      if (audioBlob) {
+              // For development, store audio as blob URL
+      // In production, this would upload to a server
+      audioUrlToSend = URL.createObjectURL(audioBlob);
+      }
       if (replyTo && asWhisper) {
         // Send whisper to API
         const response = await fetch('/api/whispers', {
@@ -77,7 +202,7 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
           },
           body: JSON.stringify({
             action: 'createWhisper',
-            args: { content: content.trim(), parentId: replyTo.id }
+            args: { content: postContent, parentId: replyTo.id }
           })
         });
         if (!response.ok) {
@@ -87,7 +212,7 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
 			const opts = pollOptions.map(o => o.trim()).filter(Boolean).slice(0, 5);
 			await createPollPost(
 				user.userId,
-				pollQuestion.trim() || content.trim(),
+				pollQuestion.trim() || postContent,
 				opts,
 				ttl,
 				null
@@ -96,23 +221,26 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
 			setPollOptions(['','']);
 			setAsPoll(false);
 		} else {
+			// For now, create post without audio URL since we don't have a backend server
+			// In production, this would use the backend API
 			const newPost = await createPost(
-        user.userId, 
-        content.trim(), 
-        replyTo?.id, 
-        undefined, 
-        null, 
-        ttl,
-        false, // isWhisper
-        repliesDisabled,
-        isPopupThread,
-        isPopupThread ? popupReplyLimit : undefined,
-        isPopupThread ? popupTimeLimit : undefined
-      );
+				user.userId, 
+				postContent, 
+				replyTo?.id, 
+				undefined, 
+				undefined, // imageUrl
+				audioUrlToSend, // audioUrl
+				ttl,
+				false, // isWhisper
+				repliesDisabled,
+				isPopupThread,
+				isPopupThread ? popupReplyLimit : undefined,
+				isPopupThread ? popupTimeLimit : undefined
+			);
 
       // Check for mentions and create them
       const mentionRegex = /@([a-zA-Z0-9_-]+)/g;
-      const mentions = content.match(mentionRegex);
+      const mentions = postContent.match(mentionRegex);
       if (mentions && newPost) {
         for (const mention of mentions) {
           const username = mention.slice(1); // Remove @
@@ -127,8 +255,11 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
       }
       }
       setContent('');
+      setAudioBlob(null);
+      setAudioUrl(null);
       onPostCreated();
       onCancelReply?.();
+
     } catch (error) {
       console.error('Failed to create post:', error);
     } finally {
@@ -220,6 +351,14 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
           <div className="flex items-center gap-2">
             <button type="button" onClick={() => setShowEmojis(!showEmojis)} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
               <Smile size={16} />
+            </button>
+            <button 
+              type="button" 
+              onClick={startRecording}
+              className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              disabled={audioPermission === 'denied' || recording}
+            >
+              <Mic size={16} />
             </button>
             <span className="text-xs font-mono text-gray-400 dark:text-gray-500">{asPoll ? 'poll' : `${content.length}/280`}</span>
           </div>
@@ -327,6 +466,46 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
             </div>
           </div>
         )}
+        {!asPoll && recording && (
+          <div className="flex items-center gap-2 mt-2">
+            <button
+              type="button"
+              onClick={stopRecording}
+              className="flex items-center gap-1 px-3 py-2 bg-red-600 text-white rounded font-mono text-xs"
+            >
+              <StopCircle size={16} /> Stop Recording
+            </button>
+          </div>
+        )}
+        
+        {!asPoll && audioBlob && audioUrl && (
+          <div className="mt-2 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
+            <div className="flex items-center gap-3 w-full">
+              <button 
+                onClick={togglePlay} 
+                disabled={!loaded}
+                className="bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-full w-8 h-8 flex items-center justify-center hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors disabled:opacity-50"
+              >
+                {playing ? (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="6" y="4" width="4" height="16" rx="1"/>
+                    <rect x="14" y="4" width="4" height="16" rx="1"/>
+                  </svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="5,3 19,12 5,21"/>
+                  </svg>
+                )}
+              </button>
+              <div ref={waveformContainerRef} className="flex-1 min-w-0" />
+              <span className="text-xs font-mono text-gray-500 dark:text-gray-400 ml-2 min-w-[30px] text-right">
+                {loaded ? duration.toFixed(1) + 's' : '...'}
+              </span>
+              <button type="button" onClick={removeAudio} className="text-gray-400 hover:text-red-600"><Trash2 size={16} /></button>
+            </div>
+          </div>
+        )}
+
       </form>
     </div>
   );

@@ -105,6 +105,9 @@ export default async function handler(req, res) {
         await sql`DELETE FROM posts WHERE expires_at < NOW()`;
         await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS image_url TEXT`;
         await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS is_whisper BOOLEAN DEFAULT FALSE`;
+        await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS audio_url TEXT`;
+        await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT FALSE`;
+        await sql`CREATE TABLE IF NOT EXISTS uploaded_files (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id UUID REFERENCES users(id) ON DELETE CASCADE, filename TEXT NOT NULL, file_type TEXT NOT NULL, file_size INTEGER NOT NULL, file_data BYTEA NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`;
         await sql`CREATE TABLE IF NOT EXISTS banned_users (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id UUID REFERENCES users(id) ON DELETE CASCADE, banned_by UUID REFERENCES users(id) ON DELETE SET NULL, reason TEXT NOT NULL, banned_at TIMESTAMPTZ DEFAULT NOW(), UNIQUE(user_id))`;
         await sql`CREATE TABLE IF NOT EXISTS user_mutes (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id UUID REFERENCES users(id) ON DELETE CASCADE, muted_by UUID REFERENCES users(id) ON DELETE SET NULL, reason TEXT NOT NULL, expires_at TIMESTAMPTZ NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW(), UNIQUE(user_id))`;
         await sql`CREATE TABLE IF NOT EXISTS reply_keys (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), key_hash TEXT NOT NULL, post_id UUID REFERENCES posts(id) ON DELETE CASCADE, creator_id UUID REFERENCES users(id) ON DELETE CASCADE, recipient_id UUID REFERENCES users(id) ON DELETE CASCADE, expires_at TIMESTAMPTZ NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW())`;
@@ -200,7 +203,7 @@ export default async function handler(req, res) {
           return;
         }
         
-        const { content, parentId, repostOf, imageUrl, expiresAt } = args;
+        const { content, parentId, repostOf, imageUrl, audioUrl, expiresAt } = args;
         
         // Validate content
         const validationErrors = validateInput({ content }, contentRules);
@@ -218,6 +221,7 @@ export default async function handler(req, res) {
         const sanitizedParentId = parentId ? sanitizeSQL(parentId) : null;
         const sanitizedRepostOf = repostOf ? sanitizeSQL(repostOf) : null;
         const sanitizedImageUrl = imageUrl ? sanitizeSQL(imageUrl) : null;
+        const sanitizedAudioUrl = audioUrl ? sanitizeSQL(audioUrl) : null;
         
         // Check if parent post exists (if replying)
         if (sanitizedParentId) {
@@ -235,7 +239,7 @@ export default async function handler(req, res) {
           }
         }
         
-        const rows = await sql`INSERT INTO posts (user_id, content, parent_id, repost_of, image_url, expires_at) VALUES (${me.userId}, ${sanitizedContent}, ${sanitizedParentId}, ${sanitizedRepostOf}, ${sanitizedImageUrl}, ${expiresAt || sql`DEFAULT`}) RETURNING id, user_id, content, created_at, expires_at, parent_id, repost_of, image_url`;
+        const rows = await sql`INSERT INTO posts (user_id, content, parent_id, repost_of, image_url, audio_url, expires_at) VALUES (${me.userId}, ${sanitizedContent}, ${sanitizedParentId}, ${sanitizedRepostOf}, ${sanitizedImageUrl}, ${sanitizedAudioUrl}, ${expiresAt || sql`DEFAULT`}) RETURNING id, user_id, content, created_at, expires_at, parent_id, repost_of, image_url, audio_url`;
         const post = rows[0];
         const u = await sql`SELECT username, role, avatar_url FROM users WHERE id = ${me.userId}`;
         
@@ -253,22 +257,22 @@ export default async function handler(req, res) {
         const { limit = 20, offset = 0, sortBy = 'newest' } = args || {};
         await sql`DELETE FROM posts WHERE expires_at < NOW()`;
         const orderBy = sortBy === 'newest' ? sql`p.created_at DESC` : sql`p.created_at ASC`;
-        const rows = await sql`SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of, p.image_url, u.username, u.role, u.avatar_url, (SELECT COUNT(*) FROM posts replies WHERE replies.parent_id = p.id) as reply_count FROM posts p JOIN users u ON p.user_id = u.id WHERE p.parent_id IS NULL AND p.expires_at > NOW() ORDER BY ${orderBy} LIMIT ${limit} OFFSET ${offset}`;
+        const rows = await sql`SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of, p.image_url, p.audio_url, p.is_pinned, u.username, u.role, u.avatar_url, (SELECT COUNT(*) FROM posts replies WHERE replies.parent_id = p.id) as reply_count FROM posts p JOIN users u ON p.user_id = u.id WHERE p.parent_id IS NULL AND p.expires_at > NOW() ORDER BY p.is_pinned DESC, ${orderBy} LIMIT ${limit} OFFSET ${offset}`;
         return res.status(200).json(rows);
       }
       case 'getPostReplies': {
         const { postId } = args;
-        const rows = await sql`SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of, p.image_url, u.username, u.role, u.avatar_url, 0 as reply_count FROM posts p JOIN users u ON p.user_id = u.id WHERE p.parent_id = ${postId} AND p.expires_at > NOW() ORDER BY p.created_at ASC`;
+        const rows = await sql`SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of, p.image_url, p.audio_url, p.is_pinned, u.username, u.role, u.avatar_url, 0 as reply_count FROM posts p JOIN users u ON p.user_id = u.id WHERE p.parent_id = ${postId} AND p.expires_at > NOW() ORDER BY p.created_at ASC`;
         return res.status(200).json(rows);
       }
       case 'getPostById': {
         const { id } = args;
-        const rows = await sql`SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of, p.image_url, u.username, u.role, u.avatar_url, (SELECT COUNT(*) FROM posts replies WHERE replies.parent_id = p.id) as reply_count, (SELECT COUNT(*) FROM posts rp WHERE rp.repost_of = p.id) as repost_count FROM posts p JOIN users u ON p.user_id = u.id WHERE p.id = ${id} LIMIT 1`;
+        const rows = await sql`SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of, p.image_url, p.audio_url, p.is_pinned, u.username, u.role, u.avatar_url, (SELECT COUNT(*) FROM posts replies WHERE replies.parent_id = p.id) as reply_count, (SELECT COUNT(*) FROM posts rp WHERE rp.repost_of = p.id) as repost_count FROM posts p JOIN users u ON p.user_id = u.id WHERE p.id = ${id} LIMIT 1`;
         return res.status(200).json(rows[0] || null);
       }
       case 'getUserPostsByUsername': {
         const { username } = args;
-        const rows = await sql`SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of, p.image_url, u.username, u.role, u.avatar_url, (SELECT COUNT(*) FROM posts replies WHERE replies.parent_id = p.id) as reply_count FROM posts p JOIN users u ON p.user_id = u.id WHERE u.username = ${username} AND p.expires_at > NOW() ORDER BY p.created_at DESC`;
+        const rows = await sql`SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of, p.image_url, p.audio_url, p.is_pinned, u.username, u.role, u.avatar_url, (SELECT COUNT(*) FROM posts replies WHERE replies.parent_id = p.id) as reply_count FROM posts p JOIN users u ON p.user_id = u.id WHERE u.username = ${username} AND p.expires_at > NOW() ORDER BY p.created_at DESC`;
         return res.status(200).json(rows);
       }
       case 'deletePost': {
@@ -276,6 +280,34 @@ export default async function handler(req, res) {
         const { postId } = args;
         const rows = await sql`WITH req AS (SELECT role FROM users WHERE id = ${me.userId}) DELETE FROM posts p USING req WHERE p.id = ${postId} AND (p.user_id = ${me.userId} OR req.role IN ('admin','moderator')) RETURNING p.id`;
         return res.status(200).json({ ok: rows.length > 0 });
+      }
+      
+      case 'pinPost': {
+        if (!me) return res.status(401).json({ error: 'unauthorized' });
+        const { postId } = args;
+        
+        // Check if user is admin
+        const userCheck = await sql`SELECT role FROM users WHERE id = ${me.userId}`;
+        if (userCheck.length === 0 || userCheck[0].role !== 'admin') {
+          return res.status(403).json({ error: 'admin_only' });
+        }
+        
+        await sql`UPDATE posts SET is_pinned = TRUE WHERE id = ${postId}`;
+        return res.status(200).json({ ok: true });
+      }
+      
+      case 'unpinPost': {
+        if (!me) return res.status(401).json({ error: 'unauthorized' });
+        const { postId } = args;
+        
+        // Check if user is admin
+        const userCheck = await sql`SELECT role FROM users WHERE id = ${me.userId}`;
+        if (userCheck.length === 0 || userCheck[0].role !== 'admin') {
+          return res.status(403).json({ error: 'admin_only' });
+        }
+        
+        await sql`UPDATE posts SET is_pinned = FALSE WHERE id = ${postId}`;
+        return res.status(200).json({ ok: true });
       }
       case 'repostPost': {
         if (!me) return res.status(401).json({ error: 'unauthorized' });

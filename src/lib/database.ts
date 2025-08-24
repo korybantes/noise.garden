@@ -35,6 +35,8 @@ export interface Post {
 	popup_time_limit?: number;
 	popup_closed_at?: Date;
 	replies_disabled?: boolean;
+	is_pinned?: boolean;
+	audio_url?: string | null;
 }
 
 export interface Reply {
@@ -375,6 +377,7 @@ export async function initDatabase() {
 	await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS popup_time_limit INTEGER`;
 	await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS popup_closed_at TIMESTAMPTZ`;
 	await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS replies_disabled BOOLEAN DEFAULT FALSE`;
+	await sql`ALTER TABLE posts ADD COLUMN IF NOT EXISTS audio_url TEXT`;
 }
 
 export async function createUser(username: string, passwordHash: string): Promise<User> {
@@ -410,6 +413,7 @@ export async function createPost(
 	parentId?: string,
 	repostOf?: string | null,
 	imageUrl?: string | null,
+	audioUrl?: string | null,
 	ttlSeconds?: number | null,
 	isWhisper: boolean = false,
 	repliesDisabled: boolean = false,
@@ -421,14 +425,14 @@ export async function createPost(
 	const result = await sql`
 		INSERT INTO posts (
 			user_id, content, parent_id, repost_of, image_url, expires_at, 
-			is_whisper, replies_disabled, is_popup_thread, popup_reply_limit, popup_time_limit
+			is_whisper, replies_disabled, is_popup_thread, popup_reply_limit, popup_time_limit, audio_url
 		)
 		VALUES (
 			${userId}, ${content}, ${parentId || null}, ${repostOf || null}, ${imageUrl || null}, ${expiresAt || sql`DEFAULT`},
-			${isWhisper}, ${repliesDisabled}, ${isPopupThread}, ${popupReplyLimit || null}, ${popupTimeLimit || null}
+			${isWhisper}, ${repliesDisabled}, ${isPopupThread}, ${popupReplyLimit || null}, ${popupTimeLimit || null}, ${audioUrl || null}
 		)
 		RETURNING id, user_id, content, created_at, expires_at, parent_id, repost_of, image_url,
-					is_whisper, replies_disabled, is_popup_thread, popup_reply_limit, popup_time_limit
+					is_whisper, replies_disabled, is_popup_thread, popup_reply_limit, popup_time_limit, audio_url
 	`;
 	
 	const post = result[0] as any;
@@ -496,7 +500,7 @@ export async function createPollPost(
 	const cleanOptions = options.map(o => o.trim()).filter(o => o).slice(0, 5);
 	if (cleanOptions.length < 2) throw new Error('At least two options');
 	// store question also as post content for discoverability
-	const post = await createPost(userId, question, undefined, undefined, null, ttlSeconds, false, false, false);
+	const post = await createPost(userId, question, undefined, undefined, null, null, ttlSeconds, false, false, false);
 	const pollRows = await sql`
 		INSERT INTO polls (post_id, question, closes_at)
 		VALUES (${post.id}, ${question}, ${closesAt || null})
@@ -556,14 +560,15 @@ export async function getRandomPosts(limit: number = 20, offset: number = 0, sor
 	}
 	
 	const result = await sql`
-		SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of, p.image_url,
+		SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of, p.image_url, p.audio_url,
 				 p.is_whisper, p.is_quarantined, p.is_popup_thread, p.popup_reply_limit, p.popup_time_limit, p.popup_closed_at, p.replies_disabled,
+				 p.is_pinned,
 				 u.username, u.role, u.avatar_url,
 				 (SELECT COUNT(*) FROM posts replies WHERE replies.parent_id = p.id) as reply_count
 		FROM posts p
 		JOIN users u ON p.user_id = u.id
 		WHERE p.parent_id IS NULL AND p.expires_at > NOW()
-		ORDER BY ${orderBy}
+		ORDER BY p.is_pinned DESC, ${orderBy}
 		LIMIT ${limit} OFFSET ${offset}
 	`;
 	
@@ -576,7 +581,7 @@ export async function getRandomPosts(limit: number = 20, offset: number = 0, sor
 
 export async function getPostReplies(postId: string): Promise<Post[]> {
 	const result = await sql`
-		SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of, p.image_url,
+		SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of, p.image_url, p.audio_url,
 				 p.is_whisper, p.is_quarantined, p.is_popup_thread, p.popup_reply_limit, p.popup_time_limit, p.popup_closed_at, p.replies_disabled,
 				 u.username, u.role, u.avatar_url,
 				 0 as reply_count
@@ -590,7 +595,7 @@ export async function getPostReplies(postId: string): Promise<Post[]> {
 
 export async function getUserPostsByUsername(username: string): Promise<Post[]> {
 	const result = await sql`
-		SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of, p.image_url,
+		SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of, p.image_url, p.audio_url,
 				 p.is_whisper, p.is_quarantined, p.is_popup_thread, p.popup_reply_limit, p.popup_time_limit, p.popup_closed_at, p.replies_disabled,
 				 u.username, u.role, u.avatar_url,
 				 (SELECT COUNT(*) FROM posts replies WHERE replies.parent_id = p.id) as reply_count
@@ -604,7 +609,7 @@ export async function getUserPostsByUsername(username: string): Promise<Post[]> 
 
 export async function getPostById(id: string): Promise<Post | null> {
 	const result = await sql`
-		SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of, p.image_url,
+		SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of, p.image_url, p.audio_url,
 				 p.is_whisper, p.is_quarantined, p.is_popup_thread, p.popup_reply_limit, p.popup_time_limit, p.popup_closed_at, p.replies_disabled,
 				 u.username, u.role, u.avatar_url,
 				 (SELECT COUNT(*) FROM posts replies WHERE replies.parent_id = p.id) as reply_count,
@@ -636,6 +641,22 @@ export async function repostPost(userId: string, originalPostId: string): Promis
 	const content = original[0]?.content || '';
 	const imageUrl = original[0]?.image_url || null;
 	return createPost(userId, content, undefined, originalPostId, imageUrl);
+}
+
+export async function pinPost(postId: string, adminId: string): Promise<void> {
+	const requester = await sql`SELECT role FROM users WHERE id = ${adminId}`;
+	if (!requester[0] || requester[0].role !== 'admin') {
+		throw new Error('Unauthorized');
+	}
+	await sql`UPDATE posts SET is_pinned = TRUE WHERE id = ${postId}`;
+}
+
+export async function unpinPost(postId: string, adminId: string): Promise<void> {
+	const requester = await sql`SELECT role FROM users WHERE id = ${adminId}`;
+	if (!requester[0] || requester[0].role !== 'admin') {
+		throw new Error('Unauthorized');
+	}
+	await sql`UPDATE posts SET is_pinned = FALSE WHERE id = ${postId}`;
 }
 
 export async function deleteUser(userId: string): Promise<void> {
@@ -947,7 +968,7 @@ export async function getPostFlags(postId: string): Promise<Flag[]> {
 
 export async function getFlaggedPosts(): Promise<Post[]> {
 	const result = await sql`
-		SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of, p.image_url,
+		SELECT p.id, p.user_id, p.content, p.created_at, p.expires_at, p.parent_id, p.repost_of, p.image_url, p.audio_url,
 				 p.is_quarantined, p.is_popup_thread, p.popup_reply_limit, p.popup_time_limit, p.popup_closed_at, p.replies_disabled,
 				 u.username, u.role, u.avatar_url,
 				 (SELECT COUNT(*) FROM posts replies WHERE replies.parent_id = p.id) as reply_count,

@@ -22,39 +22,26 @@ export function usePushNotifications() {
   };
 
   useEffect(() => {
-    let receivedListener: any;
-    let actionListener: any;
+    let receivedListenerHandle: any;
+    let actionListenerHandle: any;
+    (async () => {
+      receivedListenerHandle = await PushNotifications.addListener('pushNotificationReceived', (notification: any) => {
+        console.log('Notification received:', notification);
+        // handle notification
+      });
+      actionListenerHandle = await PushNotifications.addListener('pushNotificationActionPerformed', (notification: any) => {
+        console.log('Notification action performed:', notification);
+        // handle notification tap
+      });
+    })();
 
-    const setupListeners = async () => {
-      try {
-        // Listen for notifications - await the Promise to get the listener handle
-        receivedListener = await PushNotifications.addListener('pushNotificationReceived', (notification: any) => {
-          console.log('Notification received:', notification);
-          // handle notification
-        });
-
-        actionListener = await PushNotifications.addListener('pushNotificationActionPerformed', (notification: any) => {
-          console.log('Notification action performed:', notification);
-          // handle notification tap
-        });
-
-        // Register for push notifications on mount
-        await registerForPushNotifications();
-      } catch (error) {
-        console.error('Error setting up push notification listeners:', error);
-      }
-    };
-
-    setupListeners();
+    // Register for push notifications on mount
+    registerForPushNotifications();
 
     // Cleanup
     return () => {
-      if (receivedListener?.remove) {
-        receivedListener.remove();
-      }
-      if (actionListener?.remove) {
-        actionListener.remove();
-      }
+      receivedListenerHandle && receivedListenerHandle.remove();
+      actionListenerHandle && actionListenerHandle.remove();
     };
   }, []);
 
