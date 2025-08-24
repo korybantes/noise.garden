@@ -129,8 +129,8 @@ export function AuthForm() {
           el.style.setProperty('--altcha-color-border', dark ? '#374151' : '#d1d5db');
           el.style.setProperty('--altcha-color-base', dark ? '#111827' : '#ffffff');
         };
-        el.setAttribute('challengeurl', '/api/altcha/challenge');
-        el.setAttribute('endpoint', '/api/altcha/verify');
+        el.setAttribute('challengeurl', '/api/altcha');
+        el.setAttribute('endpoint', '/api/altcha');
         el.style.setProperty('--altcha-border-radius', '6px');
         el.style.setProperty('--altcha-max-width', '100%');
         setTheme();
