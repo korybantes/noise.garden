@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
-import { Send, X, Smile, Clock, MoreHorizontal, Lock, ListPlus, MicOff, Mic, StopCircle, Trash2 } from 'lucide-react';
+import { Send, X, Clock, MoreHorizontal, Lock, ListPlus, MicOff, Mic, StopCircle, Trash2 } from 'lucide-react';
 import { createPost, createPollPost, createMention } from '../lib/database';
 import { useAuth } from '../hooks/useAuth';
 import { containsLink, sanitizeLinks } from '../lib/validation';
@@ -16,7 +16,6 @@ interface PostComposerProps {
 	initialContent?: string;
 }
 
-const COMMON_EMOJIS = ['😀','😁','😂','🤣','😊','😍','🤔','😎','🙃','🤯','🥲','🙏','🔥','✨','🤝','👍','👀','💬','💭','🌱'];
 const TTL_PRESETS: { label: string; seconds: number }[] = [
 	{ label: '1h', seconds: 60 * 60 },
 	{ label: '24h', seconds: 60 * 60 * 24 },
@@ -28,8 +27,7 @@ const TTL_PRESETS: { label: string; seconds: number }[] = [
 export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialContent = '' }: PostComposerProps) {
 	const [content, setContent] = useState(initialContent);
   const [loading, setLoading] = useState(false);
-  const [showEmojis, setShowEmojis] = useState(false);
-	const [ttl] = useState<number>(TTL_PRESETS[4].seconds);
+  const [ttl] = useState<number>(TTL_PRESETS[4].seconds);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   const [isPopupThread, setIsPopupThread] = useState(false);
   const [popupReplyLimit, setPopupReplyLimit] = useState(10);
@@ -51,6 +49,8 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
   const wavesurferRef = useRef<WaveSurfer | null>(null);
   const waveformContainerRef = useRef<HTMLDivElement | null>(null);
   const [audioSupported, setAudioSupported] = useState(true);
+  const [elapsed, setElapsed] = useState(0);
+  const timerRef = useRef<number | null>(null);
 
 
 	// Auto-fill hashtag when in a room
@@ -66,14 +66,8 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
 		}
 	}, [initialContent, replyTo]); // Removed 'content' from dependencies to prevent infinite loop
 
-  // Request mic permission on mobile
-  useEffect(() => {
-    if (audioPermission === 'unknown') {
-      navigator.mediaDevices.getUserMedia({ audio: true })
-        .then(() => setAudioPermission('granted'))
-        .catch(() => setAudioPermission('denied'));
-    }
-  }, [audioPermission]);
+  // Removed auto permission request to avoid iOS Safari prompting on every refresh.
+  // Permission is now requested only when user taps the mic button in startRecording().
 
   useEffect(() => {
     // Check for MediaRecorder and supported MIME types
@@ -96,7 +90,6 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
       alert('Audio recording is not supported on this device/browser.');
       return;
     }
-    // Only request permission when user clicks record
     if (audioPermission !== 'granted') {
       try {
         await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -107,7 +100,6 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
       }
     }
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    // Prefer supported MIME type
     let mimeType = '';
     if (window.MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
       mimeType = 'audio/webm;codecs=opus';
@@ -120,14 +112,35 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
     }
     const recorder = mimeType ? new window.MediaRecorder(stream, { mimeType }) : new window.MediaRecorder(stream);
     const chunks: BlobPart[] = [];
-    recorder.ondataavailable = (e) => {
-      if (e.data.size > 0) chunks.push(e.data);
-    };
+    let startedAt = Date.now();
+    const maxMs = 45 * 1000;
+    const stopTimer = setTimeout(() => { try { recorder.stop(); } catch {} }, maxMs + 200);
+
+    // timer UI
+    setElapsed(0);
+    if (timerRef.current) window.clearInterval(timerRef.current);
+    timerRef.current = window.setInterval(() => {
+      const e = Date.now() - startedAt;
+      setElapsed(Math.min(45, Math.floor(e / 1000)));
+    }, 200) as unknown as number;
+
+    recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
     recorder.onstop = () => {
+      clearTimeout(stopTimer);
+      if (timerRef.current) { window.clearInterval(timerRef.current); timerRef.current = null; }
+      const elapsedMs = Date.now() - startedAt;
       const blob = new Blob(chunks, { type: mimeType || 'audio/webm' });
+      if (elapsedMs > maxMs + 150) {
+        alert('Audio posts can be max 45 seconds.');
+        setRecording(false);
+        setMediaRecorder(null);
+        try { stream.getTracks().forEach(t => t.stop()); } catch {}
+        return;
+      }
       setAudioBlob(blob);
       setAudioUrl(URL.createObjectURL(blob));
       setRecording(false);
+      try { stream.getTracks().forEach(t => t.stop()); } catch {}
     };
     recorder.start();
     setMediaRecorder(recorder);
@@ -136,11 +149,11 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
 
   const stopRecording = () => {
     if (mediaRecorder) {
-      mediaRecorder.stop();
+      try { mediaRecorder.stop(); } catch {}
       setMediaRecorder(null);
       setRecording(false);
+      if (timerRef.current) { window.clearInterval(timerRef.current); timerRef.current = null; }
     }
-
   };
 
   const removeAudio = () => {
@@ -219,23 +232,17 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
     try {
       let audioUrlToSend: string | null = null;
       if (audioBlob) {
-        // Check audio duration (max 45 seconds)
-        const audio = document.createElement('audio');
-        audio.src = URL.createObjectURL(audioBlob);
-        await new Promise((resolve) => {
-          audio.onloadedmetadata = () => resolve(null);
-        });
-        if (audio.duration > 45) {
-          alert('Audio posts can be max 45 seconds.');
-          setLoading(false);
-          return;
-        }
-        // Upload audio to /api/uploads
-        const formData = new FormData();
-        formData.append('file', audioBlob, 'audio.webm');
+        // Upload raw binary to /api/uploads
+        const arrayBuffer = await audioBlob.arrayBuffer();
         const uploadRes = await fetch('/api/uploads', {
           method: 'POST',
-          body: formData,
+          headers: {
+            'Content-Type': 'application/octet-stream',
+            'X-Filename': 'audio.webm',
+            'X-File-Type': audioBlob.type || 'audio/webm',
+            Authorization: `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('auth_token') : ''}`
+          },
+          body: arrayBuffer,
         });
         if (!uploadRes.ok) {
           alert('Audio upload failed.');
@@ -323,19 +330,7 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
     }
   };
 
-  const insertEmoji = (emoji: string) => {
-    if (!textareaRef.current) return;
-    const textarea = textareaRef.current;
-    const pos = textarea.selectionStart;
-    const newContent = content.slice(0, pos) + emoji + content.slice(pos);
-    setContent(newContent);
-    
-    // Focus and set cursor position after emoji
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(pos + emoji.length, pos + emoji.length);
-    });
-  };
+  // (emoji picker removed)
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -390,6 +385,22 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
       
       <form onSubmit={handleSubmit}>
 				{!asPoll && (
+          <div className="flex items-center gap-3 mb-2">
+            <button 
+              type="button"
+              title={recording ? 'Stop' : 'Record'}
+              onClick={recording ? stopRecording : startRecording}
+              className={`${recording ? 'bg-red-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100'} flex items-center gap-2 px-3 py-2 rounded-md font-mono text-sm`}
+              disabled={audioPermission === 'denied' || !audioSupported}
+            >
+              {recording ? <><StopCircle size={16} /> Stop</> : <><Mic size={16} /> Record</>}
+            </button>
+            {recording && (
+              <span className="text-xs font-mono text-gray-600 dark:text-gray-300">{elapsed}s / 45s</span>
+            )}
+          </div>
+				)}
+				{!asPoll && (
 					<textarea 
 						ref={textareaRef} 
 						value={content} 
@@ -405,18 +416,7 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
 
         <div className="flex items-center justify-between mt-3 relative">
           <div className="flex items-center gap-2">
-            <button type="button" onClick={() => setShowEmojis(!showEmojis)} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
-              <Smile size={16} />
-            </button>
-            <button 
-              type="button" 
-              onClick={startRecording}
-              className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-              disabled={audioPermission === 'denied' || recording || !audioSupported}
-            >
-              <Mic size={16} />
-            </button>
-            <span className="text-xs font-mono text-gray-400 dark:text-gray-500">{asPoll ? 'poll' : `${content.length}/280`}</span>
+            
           </div>
           
           <div className="flex items-center gap-2">
@@ -449,25 +449,6 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
           </div>
         </div>
         
-        {showEmojis && !asPoll && (
-          <div className="absolute bottom-full left-0 mb-2 p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg z-50">
-            <div className="grid grid-cols-10 gap-1">
-              {COMMON_EMOJIS.map((emoji) => (
-                <button 
-                  key={emoji} 
-                  onClick={() => {
-                    insertEmoji(emoji);
-                    setShowEmojis(false);
-                  }} 
-                  className="w-6 h-6 text-lg hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors cursor-pointer"
-                  type="button"
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
         
         {showAdvancedOptions && !asPoll && (
           <div className="mt-4 p-3 border border-gray-200 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800">
@@ -522,18 +503,6 @@ export function PostComposer({ onPostCreated, replyTo, onCancelReply, initialCon
             </div>
           </div>
         )}
-        {!asPoll && recording && (
-          <div className="flex items-center gap-2 mt-2">
-            <button
-              type="button"
-              onClick={stopRecording}
-              className="flex items-center gap-1 px-3 py-2 bg-red-600 text-white rounded font-mono text-xs"
-            >
-              <StopCircle size={16} /> Stop Recording
-            </button>
-          </div>
-        )}
-        
         {!asPoll && audioBlob && audioUrl && (
           <div className="mt-2 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
             <div className="flex items-center gap-3 w-full">

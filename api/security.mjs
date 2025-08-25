@@ -82,11 +82,10 @@ export async function getAuthUser(req, res) {
       return null;
     }
     
-    // Check if user is banned
+    // Check if user is banned (presence of any row in banned_users for this user)
     const dbUrl = process.env.NEON_DB || process.env.VITE_NEON_DB || process.env.DATABASE_URL;
     const sql = neon(dbUrl);
-    const banCheck = await sql`SELECT banned FROM banned_users WHERE user_id = ${payload.userId}`;
-    
+    const banCheck = await sql`SELECT 1 FROM banned_users WHERE user_id = ${payload.userId} LIMIT 1`;
     if (banCheck.length > 0) {
       return null; // Banned user
     }

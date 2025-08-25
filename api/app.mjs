@@ -49,17 +49,7 @@ if (!dbUrl) {
 const sql = neon(dbUrl);
 const secretKey = new TextEncoder().encode(process.env.JWT_SECRET || process.env.VITE_JWT_SECRET || 'anonymous_social_secret_key_change_in_production');
 
-async function getAuthUser(req) {
-  const auth = req.headers.authorization || '';
-  const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
-  if (!token) return null;
-  try {
-    const { payload } = await jwtVerify(token, secretKey);
-    return { userId: String(payload.userId), username: String(payload.username), role: String(payload.role) };
-  } catch {
-    return null;
-  }
-}
+// Removed duplicate local getAuthUser; will use the imported one from security.mjs
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });
@@ -75,7 +65,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  const me = await getAuthUser(req, res);
+  const me = await getAuthUser(req);
   const { action, args } = req.body || {};
 
   // Detect suspicious activity

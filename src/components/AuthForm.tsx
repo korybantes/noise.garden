@@ -287,7 +287,15 @@ export function AuthForm() {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Username</label>
-          <input value={username} onChange={e => setUsername(e.target.value.toLowerCase())} className="mt-1 w-full rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-3 py-2 font-mono text-base" placeholder="username" maxLength={20} />
+          <input value={username} onChange={e => {
+            const v = e.target.value.toLowerCase();
+            // Allow only a-z, 0-9, underscore, hyphen
+            const sanitized = v.replace(/[^a-z0-9_-]/g, '');
+            setUsername(sanitized);
+          }} className="mt-1 w-full rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 px-3 py-2 font-mono text-base" placeholder="username" maxLength={20} />
+          <div className="mt-1 text-xs font-mono text-gray-500 dark:text-gray-400">
+            Please avoid using your real name. Usernames may contain only letters, numbers, '_' or '-'.
+          </div>
         </div>
 
         {mode !== 'backup' && (
