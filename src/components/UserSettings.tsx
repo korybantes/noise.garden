@@ -604,21 +604,19 @@ export function UserSettings({ onClose }: UserSettingsProps) {
                   <p className="font-mono text-sm text-gray-700 dark:text-gray-300">Backup codes</p>
                   <p className="font-mono text-xs text-gray-500 dark:text-gray-400">Download your one-time recovery codes</p>
                 </div>
+                <div className="flex gap-2">
                   <button
-                  onClick={() => {
+                  onClick={async () => {
                     try {
-                      const raw = localStorage.getItem('onboarding_backup_codes');
-                      if (!raw) { alert('No backup codes found on this device.'); return; }
-                      const codes: string[] = JSON.parse(raw);
-                      const blob = new Blob([codes.join('\n') + '\n'], { type: 'text/plain;charset=utf-8' });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      a.download = 'ng_backup_codes.txt';
-                      document.body.appendChild(a);
-                      a.click();
-                      a.remove();
-                      URL.revokeObjectURL(url);
+                      const resp = await fetch('/api/app', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` },
+                        body: JSON.stringify({ action: 'generateBackupCodes' })
+                      });
+                      if (!resp.ok) { alert('Could not generate backup codes.'); return; }
+                      const { codes } = await resp.json();
+                      localStorage.setItem('onboarding_backup_codes', JSON.stringify(codes));
+                      window.location.href = '/onboarding/backup-codes';
                     } catch {
                       alert('Could not download backup codes.');
                     }
@@ -627,6 +625,8 @@ export function UserSettings({ onClose }: UserSettingsProps) {
                 >
                   Download
                 </button>
+                <button onClick={() => { window.location.href = '/onboarding/tour'; }} className="px-3 py-2 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded font-mono text-sm">Run onboarding tour</button>
+                </div>
               </div>
             </div>
           )}

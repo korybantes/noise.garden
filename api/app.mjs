@@ -51,6 +51,25 @@ const secretKey = new TextEncoder().encode(process.env.JWT_SECRET || process.env
 
 // Removed duplicate local getAuthUser; will use the imported one from security.mjs
 
+// Ensure the news_posts table exists (in case initDatabase hasn't been called)
+async function ensureNewsPostsTable() {
+  try {
+    await sql`CREATE TABLE IF NOT EXISTS news_posts (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      author_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      is_published BOOLEAN DEFAULT TRUE,
+      slug TEXT UNIQUE NOT NULL
+    )`;
+  } catch (e) {
+    // Log but don't throw; downstream queries may still provide clearer context
+    console.error('Failed ensuring news_posts table:', e?.message || e);
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });
   
@@ -104,6 +123,7 @@ export default async function handler(req, res) {
         await sql`CREATE TABLE IF NOT EXISTS device_tokens (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id UUID REFERENCES users(id) ON DELETE CASCADE, token TEXT UNIQUE NOT NULL, platform TEXT NOT NULL DEFAULT 'android', created_at TIMESTAMPTZ DEFAULT NOW(), last_used TIMESTAMPTZ DEFAULT NOW())`;
         await sql`CREATE TABLE IF NOT EXISTS news_posts (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), title TEXT NOT NULL, content TEXT NOT NULL, author_id UUID REFERENCES users(id) ON DELETE CASCADE, created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW(), is_published BOOLEAN DEFAULT TRUE, slug TEXT UNIQUE NOT NULL)`;
         await sql`CREATE TABLE IF NOT EXISTS feedback_tickets (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id UUID REFERENCES users(id) ON DELETE CASCADE, type TEXT NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL, priority TEXT NOT NULL DEFAULT 'medium', status TEXT NOT NULL DEFAULT 'open', created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW())`;
+        await sql`CREATE TABLE IF NOT EXISTS backup_codes (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), user_id UUID REFERENCES users(id) ON DELETE CASCADE, code_hash TEXT NOT NULL, used BOOLEAN DEFAULT FALSE, created_at TIMESTAMPTZ DEFAULT NOW())`;
         return res.status(200).json({ ok: true });
       }
 
@@ -733,6 +753,7 @@ export default async function handler(req, res) {
       // News/Blog
       case 'createNewsPost': {
         if (!me) return res.status(401).json({ error: 'unauthorized' });
+        await ensureNewsPostsTable();
         
         // Check if user is admin or moderator
         const user = await sql`SELECT role FROM users WHERE id = ${me.userId}`;
@@ -775,6 +796,7 @@ export default async function handler(req, res) {
       
       case 'getNewsPosts': {
         const { limit = 10, offset = 0, publishedOnly = true } = args || {};
+        await ensureNewsPostsTable();
         const whereClause = publishedOnly ? sql`WHERE is_published = true` : sql``;
         
         const rows = await sql`
@@ -792,6 +814,7 @@ export default async function handler(req, res) {
       
       case 'getNewsPostBySlug': {
         const { slug } = args;
+        await ensureNewsPostsTable();
         const rows = await sql`
           SELECT np.id, np.title, np.content, np.created_at, np.updated_at, np.author_id, np.is_published, np.slug,
                  u.username as author_username, u.role as author_role
@@ -806,6 +829,7 @@ export default async function handler(req, res) {
       
       case 'updateNewsPost': {
         if (!me) return res.status(401).json({ error: 'unauthorized' });
+        await ensureNewsPostsTable();
         
         // Check if user is admin or moderator
         const user = await sql`SELECT role FROM users WHERE id = ${me.userId}`;
@@ -857,6 +881,7 @@ export default async function handler(req, res) {
       
       case 'deleteNewsPost': {
         if (!me) return res.status(401).json({ error: 'unauthorized' });
+        await ensureNewsPostsTable();
         
         // Check if user is admin or moderator
         const user = await sql`SELECT role FROM users WHERE id = ${me.userId}`;
@@ -956,6 +981,24 @@ export default async function handler(req, res) {
         `;
         
         return res.status(200).json({ tickets: rows });
+      }
+
+      case 'generateBackupCodes': {
+        if (!me) return res.status(401).json({ error: 'unauthorized' });
+        // Generate 5 fresh codes, invalidate previous
+        const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        const pick = (n) => Array.from({ length: n }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
+        const makeCode = () => `${pick(4)}-${pick(4)}-${pick(4)}-${pick(4)}`;
+        const codes = Array.from({ length: 5 }, () => makeCode());
+        // Remove old codes
+        await sql`DELETE FROM backup_codes WHERE user_id = ${me.userId}`;
+        // Hash and insert
+        const bcrypt = await import('bcryptjs');
+        for (const c of codes) {
+          const hash = await bcrypt.default.hash(c, 12);
+          await sql`INSERT INTO backup_codes (user_id, code_hash) VALUES (${me.userId}, ${hash})`;
+        }
+        return res.status(200).json({ codes });
       }
 
       default:

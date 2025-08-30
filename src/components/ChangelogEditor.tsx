@@ -34,7 +34,7 @@ export function ChangelogEditor() {
     if (!user) return;
     setLoading(true);
     try {
-      const response = await fetch('/api/app.mjs', {
+      const response = await fetch('/api/app', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -62,7 +62,7 @@ export function ChangelogEditor() {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch('/api/app.mjs', {
+      const response = await fetch('/api/app', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -97,7 +97,7 @@ export function ChangelogEditor() {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch('/api/app.mjs', {
+      const response = await fetch('/api/app', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -135,7 +135,7 @@ export function ChangelogEditor() {
 
     setLoading(true);
     try {
-      const response = await fetch('/api/app.mjs', {
+      const response = await fetch('/api/app', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

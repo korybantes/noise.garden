@@ -21,7 +21,7 @@ export default async function handler(req, res) {
   try {
     // Expect raw binary body (application/octet-stream)
     const filename = req.headers['x-filename'] || `audio_${Date.now()}.webm`;
-    const fileType = String(req.headers['x-file-type'] || 'audio/webm');
+    let fileType = String(req.headers['x-file-type'] || '');
 
     const maxSize = 10 * 1024 * 1024; // 10MB
     const chunks = [];
@@ -44,8 +44,9 @@ export default async function handler(req, res) {
     if (buffer.length === 0) {
       return res.status(400).json({ error: 'no_file_provided' });
     }
-    if (!fileType.startsWith('audio/')) {
-      return res.status(400).json({ error: 'invalid_file_type' });
+    if (!fileType || !fileType.startsWith('audio/')) {
+      // Safari/iOS may omit MIME type; default to audio/webm
+      fileType = 'audio/webm';
     }
 
     // If Cloudinary configured, upload there and return URL directly

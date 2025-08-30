@@ -101,7 +101,7 @@ export function BottomNav() {
 
   return (
     <>
-      <nav className="fixed bottom-0 inset-x-0 md:hidden bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 shadow-lg z-40 pb-safe-area-inset-bottom">
+      <nav id="ng-bottomnav" className="fixed bottom-0 inset-x-0 md:hidden bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 shadow-lg z-40 pb-safe-area-inset-bottom">
         <div className="w-full max-w-2xl mx-auto flex items-stretch justify-around px-1 py-1">
           <button onClick={onSelectFeed} className={btnClass(view === 'feed')}>
             <Home size={18} />

@@ -28,13 +28,10 @@ export function ChangelogViewer() {
   const loadPosts = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/app.mjs', {
+      const response = await fetch('/api/app', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'getNewsPosts',
-          args: { limit: 10, offset: 0, publishedOnly: true }
-        })
+        body: JSON.stringify({ action: 'getNewsPosts', args: { limit: 20, offset: 0, publishedOnly: true } })
       });
       
       if (!response.ok) throw new Error('Failed to load posts');

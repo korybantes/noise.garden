@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { AuthForm } from './components/AuthForm';
 import { Header } from './components/Header';
@@ -13,17 +13,21 @@ import { NotificationsPage } from './components/NotificationsPage';
 import { NewsPage } from './components/NewsPage';
 import { Footer } from './components/Footer';
 import { RouterProvider, useRouter } from './hooks/useRouter';
-import { OnboardingBackupCodes } from './components/OnboardingBackupCodes';
+// OnboardingBackupCodes modal removed in favor of dedicated page
 import { UserSettings } from './components/UserSettings';
 import { NotificationTester } from './components/NotificationTester';
 import { usePushNotifications } from './hooks/usePushNotifications';
 import { NotificationToast } from './components/NotificationToast';
+import { TourProvider, useTour } from '@reactour/tour';
+import { t } from './lib/translations';
+import { useLanguage } from './hooks/useLanguage';
 
 function AppContent() {
   const { user, isLoading } = useAuth();
   const { view, setView, swipeProgress, isSwiping } = useNavigation();
   const { route } = useRouter();
-  const [onboardingCodes, setOnboardingCodes] = useState<string[] | null>(null);
+  const { language } = useLanguage();
+  // onboarding codes handled via dedicated page; no local state needed here
   
   // Initialize push notifications (hook handles platform detection internally)
   usePushNotifications();
@@ -49,23 +53,28 @@ function AppContent() {
     }
   }, [route.name, setView]);
 
-  useEffect(() => {
-    if (!user) return;
-    // After login, check if onboarding backup codes exist
-    try {
-      const raw = localStorage.getItem('onboarding_backup_codes');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.every((x) => typeof x === 'string')) {
-          setOnboardingCodes(parsed as string[]);
-        } else {
-          localStorage.removeItem('onboarding_backup_codes');
-        }
-      }
-    } catch {
-      // ignore parse errors
-    }
-  }, [user]);
+  const steps = useMemo(() => ([
+    { selector: '#ng-header', content: () => (
+      <div className="font-mono">
+        <div className="text-sm font-bold mb-1">{t('tourHeaderTitle', language)}</div>
+        <div className="text-xs text-gray-700 dark:text-gray-300">{t('tourHeaderBody', language)}</div>
+      </div>
+    ) },
+    { selector: '#ng-composer', position: 'bottom', content: () => (
+      <div className="font-mono">
+        <div className="text-sm font-bold mb-1">{t('tourComposerTitle', language)}</div>
+        <div className="text-xs text-gray-700 dark:text-gray-300">{t('tourComposerBody', language)}</div>
+      </div>
+    ) },
+    { selector: '#ng-bottomnav', position: 'top', content: () => (
+      <div className="font-mono">
+        <div className="text-sm font-bold mb-1">{t('tourBottomNavTitle', language)}</div>
+        <div className="text-xs text-gray-700 dark:text-gray-300">{t('tourBottomNavBody', language)}</div>
+      </div>
+    ) },
+  ] as any), [language]);
+
+  // onboarding backup code display moved to dedicated page
 
   if (isLoading) {
     return (
@@ -94,7 +103,22 @@ function AppContent() {
     </div>
   );
 
+  const TourAutoOpener = () => {
+    const { setIsOpen } = useTour();
+    useEffect(() => {
+      try {
+        if (localStorage.getItem('ng_start_tour') === '1') {
+          localStorage.removeItem('ng_start_tour');
+          setTimeout(() => setIsOpen(true), 300);
+        }
+      } catch {}
+    }, []);
+    return null;
+  };
+
   return (
+    <TourProvider steps={steps}>
+    <TourAutoOpener />
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-20 md:pb-0 flex flex-col">
       <Header />
       <div className="flex-1 relative overflow-hidden">
@@ -120,16 +144,9 @@ function AppContent() {
       <Footer />
       <BottomNav />
       <NotificationToast onClose={() => {}} />
-      {onboardingCodes && (
-        <OnboardingBackupCodes
-          codes={onboardingCodes}
-          onClose={() => {
-            setOnboardingCodes(null);
-            localStorage.removeItem('onboarding_backup_codes');
-          }}
-        />
-      )}
+      {/* backup codes now shown in a dedicated page during onboarding */}
     </div>
+    </TourProvider>
   );
 }
 

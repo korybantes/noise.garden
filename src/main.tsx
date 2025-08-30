@@ -9,6 +9,8 @@ import Privacy from './pages/Privacy.tsx';
 import Terms from './pages/Terms.tsx';
 import Cookies from './pages/Cookies.tsx';
 import Docs from './pages/Docs.tsx';
+import OnboardingBackupCodesPage from './pages/OnboardingBackupCodesPage.tsx';
+import OnboardingTour from './pages/OnboardingTour.tsx';
 import { AuthProvider } from './hooks/useAuth';
 import { MobileLoading } from './components/MobileLoading.tsx';
 
@@ -79,6 +81,8 @@ function Root() {
             <Route path="/cookies" element={<Cookies />} />
             <Route path="/docs" element={<Docs />} />
             <Route path="/app" element={<App />} />
+            <Route path="/onboarding/backup-codes" element={<OnboardingBackupCodesPage />} />
+            <Route path="/onboarding/tour" element={<OnboardingTour />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>

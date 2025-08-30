@@ -2,6 +2,11 @@ import { neon } from '@neondatabase/serverless';
 
 const sql = neon(import.meta.env.VITE_NEON_DB || process.env.NEON_DB!, { disableWarningInBrowsers: true });
 
+// Use deployed API when running locally in Vite (so /api routes resolve)
+const API_BASE = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
+  ? (import.meta.env.VITE_PROD_API_BASE || '')
+  : '';
+
 export type UserRole = 'user' | 'moderator' | 'admin' | 'community_manager';
 
 export interface User {
@@ -1430,7 +1435,7 @@ export async function createNewsPost(
 	content: string, 
 	isPublished: boolean = true
 ): Promise<NewsPost> {
-	const response = await fetch('/api/app.mjs', {
+	const response = await fetch(`${API_BASE}/api/app`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({
@@ -1447,7 +1452,7 @@ export async function createNewsPost(
 }
 
 export async function getNewsPosts(limit: number = 10, offset: number = 0, publishedOnly: boolean = true): Promise<NewsPost[]> {
-	const response = await fetch('/api/app.mjs', {
+	const response = await fetch(`${API_BASE}/api/app`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({
@@ -1464,7 +1469,7 @@ export async function getNewsPosts(limit: number = 10, offset: number = 0, publi
 }
 
 export async function getNewsPostBySlug(slug: string): Promise<NewsPost | null> {
-	const response = await fetch('/api/app.mjs', {
+	const response = await fetch(`${API_BASE}/api/app`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({
@@ -1484,7 +1489,7 @@ export async function updateNewsPost(
 	postId: string, 
 	updates: { title?: string; content?: string; isPublished?: boolean }
 ): Promise<NewsPost> {
-	const response = await fetch('/api/app.mjs', {
+	const response = await fetch(`${API_BASE}/api/app`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({
@@ -1501,7 +1506,7 @@ export async function updateNewsPost(
 }
 
 export async function deleteNewsPost(postId: string): Promise<boolean> {
-	const response = await fetch('/api/app.mjs', {
+	const response = await fetch(`${API_BASE}/api/app`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({

@@ -20,6 +20,7 @@
     "@capacitor/push-notifications": "^7.0.2",
     "@capacitor/splash-screen": "^7.0.2",
     "@neondatabase/serverless": "^1.0.1",
+    "@reactour/tour": "^3.8.0",
     "@simplewebauthn/browser": "^8.3.7",
     "@simplewebauthn/server": "^8.3.7",
     "@types/marked": "^6.0.0",

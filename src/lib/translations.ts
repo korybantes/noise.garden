@@ -242,6 +242,14 @@ export interface Translations {
   noTracking: string;
   exportAnytime: string;
   
+  // Onboarding Tour
+  tourHeaderTitle: string;
+  tourHeaderBody: string;
+  tourComposerTitle: string;
+  tourComposerBody: string;
+  tourBottomNavTitle: string;
+  tourBottomNavBody: string;
+  
   // Instagram Generator
   instagramStoryGenerator: string;
   storyGenerator: string;
@@ -525,6 +533,14 @@ export const translations: Record<'en' | 'tr', Translations> = {
     noTracking: 'no tracking',
     exportAnytime: 'export anytime',
     
+    // Onboarding Tour
+    tourHeaderTitle: 'header & notifications',
+    tourHeaderBody: 'Use the top bar to navigate, open settings, and see mentions/notifications.',
+    tourComposerTitle: 'compose a thought',
+    tourComposerBody: 'Write a quick idea, add audio, or start a popup thread. Press Ctrl/⌘+Enter to post.',
+    tourBottomNavTitle: 'quick nav',
+    tourBottomNavBody: 'Switch between feed, profile, chat, invites, and notifications.',
+    
     // Instagram Generator
     instagramStoryGenerator: 'Instagram Story Generator',
     storyGenerator: 'Story Generator',
@@ -806,6 +822,14 @@ export const translations: Record<'en' | 'tr', Translations> = {
     noEmail: 'e-posta yok',
     noTracking: 'izleme yok',
     exportAnytime: 'istediğin zaman dışa aktar',
+    
+    // Onboarding Tour
+    tourHeaderTitle: 'başlık ve bildirimler',
+    tourHeaderBody: 'Üst çubuktan gezin, ayarlara gidin ve etiketler/bildirimleri görün.',
+    tourComposerTitle: 'düşünce yaz',
+    tourComposerBody: 'Hızlı bir fikir yazın, ses ekleyin veya pop-up konu başlatın. Göndermek için Ctrl/⌘+Enter.',
+    tourBottomNavTitle: 'hızlı gezinme',
+    tourBottomNavBody: 'Akış, profil, sohbet, davet ve bildirimler arasında geçiş yapın.',
     
     // Instagram Generator
     instagramStoryGenerator: 'Instagram Hikaye Oluşturucu',

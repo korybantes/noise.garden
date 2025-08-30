@@ -4,7 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { getAllUsers, updateUserRole, getUserStats, UserRole, banUser, unbanUser, getBannedUsers, createAdminInvite, muteUser, unmuteUser, getMutedUsers } from '../lib/database';
 import { useLanguage } from '../hooks/useLanguage';
 import { NotificationService } from '../services/notificationService';
-import { ChangelogEditor } from './ChangelogEditor';
+import { NewsPage } from './NewsPage';
 
 interface AdminPanelProps {
   onClose: () => void;
@@ -143,7 +143,7 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
 
   const loadFlaggedPosts = async () => {
     try {
-      const response = await fetch('/api/app.mjs', {
+      const response = await fetch('/api/app', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -159,7 +159,7 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
       }
 
       const result = await response.json();
-      return result.flaggedPosts || [];
+      return Array.isArray(result.flaggedPosts) ? result.flaggedPosts : [];
     } catch (error) {
       console.error('Error loading flagged posts:', error);
       return [];
@@ -169,7 +169,7 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
   const loadInvites = async () => {
     if (!user) return [];
     try {
-      const response = await fetch('/api/app.mjs', {
+      const response = await fetch('/api/app', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -185,7 +185,7 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
       }
 
       const result = await response.json();
-      return result.invites || [];
+      return Array.isArray(result.invites) ? result.invites : [];
     } catch (error) {
       console.error('Error loading invites:', error);
       return [];
@@ -195,7 +195,7 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
   const loadFeedbackTickets = async () => {
     if (!user) return [];
     try {
-      const response = await fetch('/api/app.mjs', {
+      const response = await fetch('/api/app', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -205,13 +205,12 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
           args: {}
         })
       });
-
       if (!response.ok) {
         throw new Error('Failed to load feedback tickets');
       }
 
       const result = await response.json();
-      return result.tickets || [];
+      return Array.isArray(result.tickets) ? result.tickets : [];
     } catch (error) {
       console.error('Error loading feedback tickets:', error);
       return [];
@@ -1162,7 +1161,7 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
 
             {/* News Section */}
             {activeTab === 'news' && (
-              <ChangelogEditor />
+              <NewsPage />
             )}
 
             {/* Feedback Section */}

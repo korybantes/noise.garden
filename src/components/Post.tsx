@@ -303,39 +303,59 @@ export function Post({ post, onReply, onViewReplies, onDeleted, onReposted, isRe
   };
 
   return (
-    <div className={`relative bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4 transition-shadow hover:shadow-sm ${isReply ? 'ml-6 border-l-3 border-l-gray-200 dark:border-l-gray-800' : ''} ${post.is_pinned ? 'ring-4 ring-yellow-400 ring-opacity-60 border-yellow-400 shadow-lg' : ''}`} onMouseEnter={() => setShowActions(true)} onMouseLeave={() => setShowActions(false)}>
+    <div className={`relative p-3 sm:p-6 transition-all duration-200 ${isReply ? 'ml-3 sm:ml-6 border-l-2 sm:border-l-4 border-l-gray-200 dark:border-l-gray-700' : ''} ${post.is_pinned ? 'ring-1 sm:ring-2 ring-yellow-400 ring-opacity-60 border-yellow-400' : ''}`} onMouseEnter={() => setShowActions(true)} onMouseLeave={() => setShowActions(false)}>
       {/* Pin icon for pinned posts */}
       {post.is_pinned && (
-        <div className="absolute top-2 right-2 z-10 bg-yellow-400 dark:bg-yellow-600 rounded-full p-1 shadow-lg" title="Pinned">
-          <Pin size={20} className="text-white drop-shadow" />
+        <div className="absolute top-2 sm:top-4 right-2 sm:right-4 z-10 bg-yellow-400 dark:bg-yellow-600 rounded-full p-1.5 sm:p-2 shadow-lg" title="Pinned">
+          <Pin size={16} className="sm:w-[18px] sm:h-[18px] text-white drop-shadow" />
         </div>
       )}
-      <div className="flex items-start justify-between mb-2">
-        <div className="flex items-center gap-2">
-          {post.avatar_url && <img src={post.avatar_url.replace('/upload/', '/upload/f_auto,q_auto,w_64,h_64,c_fill,g_face/')} alt="avatar" className="w-6 h-6 rounded-full object-cover" />}
-          <button onClick={openProfile} className="font-mono text-sm text-gray-600 dark:text-gray-300 hover:underline">@{post.username}</button>
-          <RoleBadge />
-          {post.is_whisper && <WhisperBadge />}
-          <span className="text-gray-300">•</span>
-          <span className="text-xs font-mono text-gray-400 flex items-center gap-1"><Clock size={12} />{formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}</span>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-3 sm:mb-4 gap-2 sm:gap-0">
+        <div className="flex items-center gap-2 sm:gap-3">
+          {post.avatar_url && (
+            <img 
+              src={post.avatar_url.replace('/upload/', '/upload/f_auto,q_auto,w_64,h_64,c_fill,g_face/')} 
+              alt="avatar" 
+              className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover ring-2 ring-gray-200 dark:ring-gray-700" 
+            />
+          )}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+            <button 
+              onClick={openProfile} 
+              className="font-mono text-sm font-semibold text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors text-left"
+            >
+              @{post.username}
+            </button>
+            <div className="flex items-center gap-1 sm:gap-2">
+              <RoleBadge />
+              {post.is_whisper && <WhisperBadge />}
+            </div>
+          </div>
         </div>
-        <div className="text-xs font-mono text-gray-300 dark:text-gray-500 flex items-center gap-3">
-          <span>{t('expiresIn', language)} {formatDistanceToNow(new Date(post.expires_at))}</span>
+        <div className="flex items-center gap-2 sm:gap-3 text-xs sm:text-sm font-mono text-gray-400 dark:text-gray-500">
+          <span className="text-gray-300 dark:text-gray-600 hidden sm:inline">•</span>
+          <span className="flex items-center gap-1">
+            <Clock size={10} className="sm:w-3 sm:h-3" />
+            {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
+          </span>
+          <span className="px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded-full text-xs">
+            {t('expiresIn', language)} {formatDistanceToNow(new Date(post.expires_at))}
+          </span>
         </div>
       </div>
       
       {post.repost_of && (
-        <div className="text-xs font-mono text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-2">
-          <Repeat2 size={12} /> reposted
-          <button onClick={openOriginal} className="inline-flex items-center gap-1 underline">
-            <Link2 size={12} /> view original
+        <div className="text-xs font-mono text-gray-500 dark:text-gray-400 mb-2 sm:mb-3 flex items-center gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-gray-50 dark:bg-gray-800 rounded-lg">
+          <Repeat2 size={10} className="sm:w-3 sm:h-3" /> reposted
+          <button onClick={openOriginal} className="inline-flex items-center gap-1 underline hover:text-blue-600 dark:hover:text-blue-400">
+            <Link2 size={10} className="sm:w-3 sm:h-3" /> view original
           </button>
         </div>
       )}
 
       {/* Show original post content for reposts */}
       {post.repost_of && originalPost && (
-        <div className="mb-3 p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+        <div className="mb-3 sm:mb-4 p-3 sm:p-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-xs font-mono text-gray-500 dark:text-gray-400">@{originalPost.username}</span>
             <span className="text-gray-300">•</span>
@@ -348,13 +368,22 @@ export function Post({ post, onReply, onViewReplies, onDeleted, onReposted, isRe
       )}
 
       {post.image_url && (
-        <div className="mb-2"><img src={post.image_url.replace('/upload/', '/upload/f_auto,q_auto,w_800,c_limit/')} alt="post" className="rounded border border-gray-200 dark:border-gray-800" /></div>
+        <div className="mb-3 sm:mb-4">
+          <img 
+            src={post.image_url.replace('/upload/', '/upload/f_auto,q_auto,w_800,c_limit/')} 
+            alt="post" 
+            className="rounded-lg border border-gray-200 dark:border-gray-800 w-full" 
+          />
+        </div>
       )}
 
-      <div className="font-mono text-sm text-gray-800 dark:text-gray-100 leading-relaxed mb-3 whitespace-pre-wrap">{renderPostContent(post.content, acceptedMentions, setProfileUsername, setView, setCurrentRoom)}</div>
+      <div className="font-mono text-sm sm:text-base text-gray-800 dark:text-gray-100 leading-relaxed mb-3 sm:mb-4 whitespace-pre-wrap">
+        {renderPostContent(post.content, acceptedMentions, setProfileUsername, setView, setCurrentRoom)}
+      </div>
+      
       {/* Audio post playback */}
       {post.audio_url && (
-        <div className="mb-3">
+        <div className="mb-3 sm:mb-4">
           <AudioWaveformPlayer url={post.audio_url} />
         </div>
       )}
@@ -364,46 +393,76 @@ export function Post({ post, onReply, onViewReplies, onDeleted, onReposted, isRe
       
       {/* Status Indicators for Community Health Features */}
       {post.is_quarantined && (
-        <div className="mb-3 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-red-700 dark:text-red-300 text-xs font-mono">
+        <div className="mb-3 sm:mb-4 p-2 sm:p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300 text-xs sm:text-sm font-mono">
           ⚠️ {t('postQuarantined', language)}
         </div>
       )}
 
       {post.replies_disabled && (
-        <div className="mb-3 p-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded text-gray-600 dark:text-gray-400 text-xs font-mono">
+        <div className="mb-3 sm:mb-4 p-2 sm:p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 text-xs sm:text-sm font-mono">
           🔒 {t('repliesDisabled', language)}
         </div>
       )}
       
       {(showActions || isReply) && (
-        <div className="flex items-center gap-4 text-gray-400 dark:text-gray-500">
-          <button onClick={() => { if (inlineComposer) { setShowReplyComposer(true); } else { onReply(post); } }} className="flex items-center gap-1 text-xs font-mono hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title={t('replyToThisPost', language)}><MessageCircle size={14} />{t('reply', language)}</button>
+        <div className="flex flex-wrap items-center gap-3 sm:gap-6 text-gray-500 dark:text-gray-400 pt-3 sm:pt-4 border-t border-gray-100 dark:border-gray-800">
+          <button 
+            onClick={() => { if (inlineComposer) { setShowReplyComposer(true); } else { onReply(post); } }} 
+            className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm font-mono hover:text-blue-600 dark:hover:text-blue-400 transition-colors px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20" 
+            title={t('replyToThisPost', language)}
+          >
+            <MessageCircle size={14} className="sm:w-4 sm:h-4" />
+            {t('reply', language)}
+          </button>
+          
           {post.reply_count && post.reply_count > 0 && onViewReplies && !isReply && (
-            <button onClick={() => onViewReplies(post)} className="text-xs font-mono hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title={t('viewReplies', language)}>{post.reply_count} {post.reply_count === 1 ? t('reply', language) : t('replies', language)}</button>
+            <button 
+              onClick={() => onViewReplies(post)} 
+              className="text-xs sm:text-sm font-mono hover:text-blue-600 dark:hover:text-blue-400 transition-colors px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20" 
+              title={t('viewReplies', language)}
+            >
+              {post.reply_count} {post.reply_count === 1 ? t('reply', language) : t('replies', language)}
+            </button>
           )}
-          <button onClick={() => setShowRepost(true)} className="flex items-center gap-1 text-xs font-mono hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title={t('repostThisContent', language)}><Repeat2 size={14} /> {t('repost', language)}</button>
-          <button onClick={() => sharePostAsImage()} className="flex items-center gap-1 text-xs font-mono hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title={t('shareAsImage', language)}><Share2 size={14} /> {t('share', language)}</button>
+          
+          <button 
+            onClick={() => setShowRepost(true)} 
+            className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm font-mono hover:text-green-600 dark:hover:text-green-400 transition-colors px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20" 
+            title={t('repostThisContent', language)}
+          >
+            <Repeat2 size={14} className="sm:w-4 sm:h-4" /> 
+            {t('repost', language)}
+          </button>
+          
+          <button 
+            onClick={() => sharePostAsImage()} 
+            className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm font-mono hover:text-purple-600 dark:hover:text-purple-400 transition-colors px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20" 
+            title={t('shareAsImage', language)}
+          >
+            <Share2 size={14} className="sm:w-4 sm:h-4" /> 
+            {t('share', language)}
+          </button>
           
           {/* More Actions Menu */}
           <div className="relative" ref={moreMenuRef}>
             <button 
               onClick={() => setShowMoreMenu(!showMoreMenu)}
-              className="flex items-center gap-1 text-xs font-mono hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm font-mono hover:text-gray-600 dark:hover:text-gray-300 transition-colors px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
               title="more actions"
             >
-              <MoreHorizontal size={14} />
+              <MoreHorizontal size={14} className="sm:w-4 sm:h-4" />
             </button>
             
             {showMoreMenu && (
-              <div className="absolute bottom-full right-0 mb-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10">
+              <div className="absolute bottom-full right-0 mb-2 w-40 sm:w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10">
                 <div className="py-1">
                   {/* Community Health Actions */}
                   {user && user.userId !== post.user_id && (
                     <button 
                       onClick={() => { setShowFlagModal(true); setShowMoreMenu(false); }} 
-                      className="w-full text-left px-4 py-2 text-sm font-mono text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
+                      className="w-full text-left px-3 sm:px-4 py-2 text-xs sm:text-sm font-mono text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
                     >
-                      <Flag size={14} />
+                      <Flag size={12} className="sm:w-3.5 sm:h-3.5" />
                       {t('flag', language)}
                     </button>
                   )}
@@ -411,9 +470,9 @@ export function Post({ post, onReply, onViewReplies, onDeleted, onReposted, isRe
                   {user && user.userId === post.user_id && !isReply && (
                     <button 
                       onClick={() => { setShowMoreMenu(false); }}
-                      className="w-full text-left px-4 py-2 text-sm font-mono text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
+                      className="w-full text-left px-3 sm:px-4 py-2 text-xs sm:text-sm font-mono text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
                     >
-                      <Lock size={14} />
+                      <Lock size={12} className="sm:w-3.5 sm:h-3.5" />
                       toggle replies
                     </button>
                   )}
@@ -422,9 +481,9 @@ export function Post({ post, onReply, onViewReplies, onDeleted, onReposted, isRe
                     <button
                       onClick={handlePin}
                       disabled={pinning}
-                      className="w-full text-left px-4 py-2 text-sm font-mono text-yellow-700 dark:text-yellow-300 hover:bg-yellow-100 dark:hover:bg-yellow-900 transition-colors flex items-center gap-2"
+                      className="w-full text-left px-3 sm:px-4 py-2 text-xs sm:text-sm font-mono text-yellow-700 dark:text-yellow-300 hover:bg-yellow-100 dark:hover:bg-yellow-900 transition-colors flex items-center gap-2"
                     >
-                      <Pin size={14} />
+                      <Pin size={12} className="sm:w-3.5 sm:h-3.5" />
                       {post.is_pinned ? 'Unpin Post' : 'Pin Post'}
                     </button>
                   )}
@@ -432,9 +491,9 @@ export function Post({ post, onReply, onViewReplies, onDeleted, onReposted, isRe
                   {canDelete && (
                     <button 
                       onClick={() => { handleDelete(); setShowMoreMenu(false); }} 
-                      className="w-full text-left px-4 py-2 text-sm font-mono text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
+                      className="w-full text-left px-3 sm:px-4 py-2 text-xs sm:text-sm font-mono text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={12} className="sm:w-3.5 sm:h-3.5" />
                       {t('delete', language)}
                     </button>
                   )}

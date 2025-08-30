@@ -300,17 +300,17 @@ export function Feed() {
   }
 
   return (
-    <div className="h-full bg-gray-50 dark:bg-gray-950 overflow-y-auto">
-      <div className="w-full max-w-2xl mx-auto px-2 sm:px-4" ref={containerRef}>
+    <div className="h-full bg-gradient-to-br from-gray-50 via-gray-100 to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 overflow-y-auto">
+      <div className="w-full max-w-3xl mx-auto px-2 sm:px-6" ref={containerRef}>
         {/* Enhanced Pull to refresh indicator - only show on mobile */}
         {isMobile && (
-          <div className={`text-center py-3 transition-all duration-200 ease-out ${
+          <div className={`text-center py-2 sm:py-4 transition-all duration-200 ease-out ${
             pullToRefresh.isPulling ? 'opacity-100' : 'opacity-60'
           }`}>
-            <div className="flex items-center justify-center gap-2 text-sm font-mono">
+            <div className="flex items-center justify-center gap-1 sm:gap-2 text-xs sm:text-sm font-mono">
               <RefreshCw 
-                size={16} 
-                className={`transition-transform duration-200 ${
+                size={14} 
+                className={`sm:w-4 sm:h-4 transition-transform duration-200 ${
                   pullToRefresh.isPulling 
                     ? pullToRefresh.distance > 60 
                       ? 'text-green-600 dark:text-green-400 rotate-180' 
@@ -348,25 +348,32 @@ export function Feed() {
           </div>
         )}
         
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-8 gap-3 sm:gap-0">
           <div>
             {currentRoom ? (
               <>
-                <h1 className="text-xl font-mono font-bold text-gray-900 dark:text-gray-100">{currentRoom}</h1>
-                <div className="mt-1 inline-flex items-center gap-2 text-xs font-mono text-gray-500 dark:text-gray-400">
-                  <span className="inline-flex items-center gap-1"><Tag size={12} /> {t('room', language)}</span>
-                  <button onClick={clearRoomFilter} className="px-2 py-0.5 rounded border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800">{t('leaveRoom', language)}</button>
+                <h1 className="text-lg sm:text-2xl font-mono font-bold text-gray-900 dark:text-gray-100">{currentRoom}</h1>
+                <div className="mt-1 sm:mt-2 flex flex-wrap items-center gap-2 sm:gap-3 text-xs sm:text-sm font-mono text-gray-500 dark:text-gray-400">
+                  <span className="inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                    <Tag size={12} className="sm:w-3.5 sm:h-3.5" /> {t('room', language)}
+                  </span>
+                  <button 
+                    onClick={clearRoomFilter} 
+                    className="px-2 sm:px-3 py-1 sm:py-1.5 rounded-full border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  >
+                    {t('leaveRoom', language)}
+                  </button>
                 </div>
               </>
             ) : (
               <>
-                <h1 className="text-xl font-mono font-bold text-gray-900 dark:text-gray-100">{t('noiseGarden', language)}</h1>
-                <p className="text-sm font-mono text-gray-500 dark:text-gray-400">{t('randomThoughtsShuffledDaily', language)}</p>
+                <h1 className="text-lg sm:text-2xl font-mono font-bold text-gray-900 dark:text-gray-100">{t('noiseGarden', language)}</h1>
+                <p className="text-xs sm:text-sm font-mono text-gray-500 dark:text-gray-400 mt-1">{t('randomThoughtsShuffledDaily', language)}</p>
               </>
             )}
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <Select 
               value={sortBy} 
               options={[
@@ -381,51 +388,73 @@ export function Feed() {
         </div>
 
         {!replyTo && !quiet && (
-          <PostComposer onPostCreated={handlePostCreated} />
+          <div id="ng-composer" className="mb-4 sm:mb-8">
+            <div className="bg-white dark:bg-gray-900 rounded-lg sm:rounded-xl shadow-sm sm:shadow-lg border border-gray-200 dark:border-gray-800 p-3 sm:p-6">
+              <PostComposer onPostCreated={handlePostCreated} />
+            </div>
+          </div>
         )}
 
         {quiet && (
-          <div className="mb-4 p-3 border border-gray-200 dark:border-gray-800 rounded text-xs font-mono text-gray-600 dark:text-gray-300">{t('quietHoursActive', language)}</div>
+          <div className="mb-4 sm:mb-6 p-3 sm:p-4 border border-amber-200 dark:border-amber-800 rounded-lg sm:rounded-xl bg-amber-50 dark:bg-amber-900/20 text-xs sm:text-sm font-mono text-amber-700 dark:text-amber-300">
+            {t('quietHoursActive', language)}
+          </div>
         )}
 
         {loading ? (
-          <div className="text-center py-8 font-mono text-gray-500 dark:text-gray-300">
-            {t('loadingRandomThoughts', language)}
+          <div className="text-center py-8 sm:py-12 font-mono text-gray-500 dark:text-gray-300">
+            <div className="animate-pulse">
+              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gray-300 dark:bg-gray-600 rounded-full mx-auto mb-3 sm:mb-4"></div>
+              <span className="text-sm sm:text-base">{t('loadingRandomThoughts', language)}</span>
+            </div>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="font-mono text-gray-500 dark:text-gray-400 mb-4">{t('nothingHere', language)}</p>
-            <p className="font-mono text-sm text-gray-400 dark:text-gray-500">{t('tryRemovingMutes', language)}</p>
+          <div className="text-center py-12 sm:py-16">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gray-200 dark:bg-gray-800 rounded-full mx-auto mb-3 sm:mb-4 flex items-center justify-center">
+              <span className="text-xl sm:text-2xl">🌱</span>
+            </div>
+            <p className="font-mono text-gray-500 dark:text-gray-400 mb-2 text-base sm:text-lg">{t('nothingHere', language)}</p>
+            <p className="font-mono text-xs sm:text-sm text-gray-400 dark:text-gray-500">{t('tryRemovingMutes', language)}</p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-6">
             {filtered.map((post) => (
-              <div key={post.id}>
-              <Post
-                post={post}
-                onReply={setReplyTo}
-                onViewReplies={loadReplies}
-                onDeleted={handleDeleted}
-                onReposted={() => loadPosts({ silent: true, reset: true })}
-                inlineComposer={false}
-              />
+              <div key={post.id} className="group">
+                <div className="bg-white dark:bg-gray-900 rounded-lg sm:rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 hover:shadow-md hover:border-gray-300 dark:hover:border-gray-700 transition-all duration-200 overflow-hidden">
+                  <Post
+                    post={post}
+                    onReply={setReplyTo}
+                    onViewReplies={loadReplies}
+                    onDeleted={handleDeleted}
+                    onReposted={() => loadPosts({ silent: true, reset: true })}
+                    inlineComposer={false}
+                  />
+                </div>
                 {replyTo && replyTo.id === post.id && (
-                  <div className="mt-3">
-                    <PostComposer onPostCreated={handlePostCreated} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} />
+                  <div className="mt-3 sm:mt-4 ml-3 sm:ml-6">
+                    <div className="bg-white dark:bg-gray-900 rounded-lg sm:rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-3 sm:p-4">
+                      <PostComposer onPostCreated={handlePostCreated} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} />
+                    </div>
                   </div>
                 )}
               </div>
             ))}
             
             {loadingMore && (
-              <div className="text-center py-4 font-mono text-gray-500 dark:text-gray-300">
-                {t('loadingMore', language)}
+              <div className="text-center py-6 sm:py-8 font-mono text-gray-500 dark:text-gray-300">
+                <div className="animate-pulse">
+                  <div className="w-5 h-5 sm:w-6 sm:h-6 bg-gray-300 dark:bg-gray-600 rounded-full mx-auto mb-2"></div>
+                  <span className="text-sm">{t('loadingMore', language)}</span>
+                </div>
               </div>
             )}
             
             {!hasMore && filtered.length > 0 && (
-              <div className="text-center py-4 font-mono text-gray-500 dark:text-gray-300">
-                {t('noMorePosts', language)}
+              <div className="text-center py-6 sm:py-8 font-mono text-gray-500 dark:text-gray-300">
+                <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gray-200 dark:bg-gray-800 rounded-full mx-auto mb-2 sm:mb-3 flex items-center justify-center">
+                  <span className="text-base sm:text-lg">✨</span>
+                </div>
+                <span className="text-sm sm:text-base">{t('noMorePosts', language)}</span>
               </div>
             )}
           </div>
